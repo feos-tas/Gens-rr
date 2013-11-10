@@ -27,30 +27,14 @@ HDC HexDC;
 unsigned int
 	ClientTopGap = 0,
 	RowCount = 16; // Offset consists of 16 bytes
-bool init = 1;
 
-struct HexParameters
-{
-	bool FontBold;
-	unsigned int
-		FontHeight, FontWidth, FontWeight,
-		GapFontH, GapFontV, GapHeaderH, GapHeaderV,
-		CellHeight, CellWidth,
-		OffsetVisibleFirst, OffsetVisibleLast, OffsetVisibleTotal,
-		DialogPosX, DialogPosY, DialogSizeX, DialogSizeY,
-		AddressSelectedFirst, AddressSelectedLast, AddressSelectedTotal,
-		MemoryRegion;
-	COLORREF ColorFont, ColorBG, ColorSelection;
-}
-Hex =
+HexParameters Hex =
 {
 	0, 15, Hex.FontHeight / 2, Hex.FontBold ? 600 : 400,			// font
 	8, 0, Hex.FontWidth * 8, Hex.FontHeight + Hex.GapFontV,			// gaps
 	Hex.FontHeight + Hex.GapFontV, Hex.FontWidth * 2 + Hex.GapFontH,// cell size
 	0, 0, 16,														// visible offsets
 	0, 0,															// dialog pos
-	Hex.CellWidth * RowCount + Hex.GapHeaderH,						// dialog X size
-	Hex.CellHeight * (Hex.OffsetVisibleTotal + 1) + 1,				// dialog Y size
 	0, 0, Hex.AddressSelectedLast - Hex.AddressSelectedFirst,		// selected addresses
 	0xff0000,														// memory region
 	0x00000000, 0x00ffffff, 0x00ffdc00,								// colors
@@ -143,34 +127,37 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 			HexDC = GetDC(hDlg);
 			SelectObject(HexDC, HexFont);
 			SetTextAlign(HexDC, TA_UPDATECP | TA_TOP | TA_LEFT);
-			
+/*			
 			if (Full_Screen)
 			{
 				while (ShowCursor(false) >= 0);
 				while (ShowCursor(true) < 0);
 			}
-
-			GetWindowRect(HWnd, &r);
-			Hex.DialogPosX = r.right;
-			Hex.DialogPosY = r.top;
-
-			GetWindowRect(hDlg, &wr);
-			GetClientRect(hDlg, &cr);
-			ClientTopGap = wr.bottom - wr.top - cr.bottom + 1;
-
+*/
+			SetRect(
+				&r,
+				Hex.DialogPosX,
+				Hex.DialogPosY,
+				Hex.DialogPosX + (Hex.CellWidth * RowCount + Hex.GapHeaderH),
+				Hex.DialogPosY + (Hex.CellHeight * (Hex.OffsetVisibleTotal + 1) + 1)				
+			);
+			
 			// Automatic adjust to account for menu, scrollbar and OS style
-			if (init)
-				AdjustWindowRectEx(&wr, GetWindowLong(hDlg, GWL_STYLE),	(GetMenu(hDlg) > 0), GetWindowLong(hDlg, GWL_EXSTYLE));
+			AdjustWindowRectEx(&r, GetWindowLong(hDlg, GWL_STYLE),	(GetMenu(hDlg) > 0), GetWindowLong(hDlg, GWL_EXSTYLE));
 
 			SetWindowPos(
 				hDlg,
 				NULL,
-				Hex.DialogPosX,
-				Hex.DialogPosY,
-				wr.right - wr.left,
-				wr.bottom - wr.top,
+				r.left,
+				r.top,
+				r.right - r.left,
+				r.bottom - r.top,
 				SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_SHOWWINDOW
 			);
+
+			GetWindowRect(hDlg, &wr);
+			GetClientRect(hDlg, &cr);
+			ClientTopGap = wr.bottom - wr.top - cr.bottom + 1;
 			
 			ZeroMemory(&si, sizeof(SCROLLINFO));
 			si.cbSize = sizeof(si);
@@ -178,6 +165,7 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 			si.nMin   = 0;
 			si.nMax   = _68K_RAM_SIZE / RowCount;
 			si.nPage  = Hex.OffsetVisibleTotal;
+			si.nPos   = Hex.OffsetVisibleFirst / RowCount;
 			SetScrollInfo(hDlg, SB_VERT, &si, TRUE);
 			return 0;
 		}
@@ -228,6 +216,7 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 			si.fMask = SIF_ALL;
 			si.cbSize = sizeof(SCROLLINFO);
 			si.nPage  = Hex.OffsetVisibleTotal;
+			si.nPos   = Hex.OffsetVisibleFirst / RowCount;
 			GetScrollInfo(hDlg,SB_VERT,&si);
 
 			switch(LOWORD(wParam))
@@ -272,6 +261,7 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 			ZeroMemory(&si, sizeof(SCROLLINFO));
 			si.fMask  = SIF_ALL;
 			si.cbSize = sizeof(SCROLLINFO);
+			si.nPos   = Hex.OffsetVisibleFirst / RowCount;
 			GetScrollInfo(hDlg, SB_VERT, &si);
 
 			if (WheelDelta < 0)
@@ -296,6 +286,7 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 			si.fMask  = SIF_ALL;
 			si.cbSize = sizeof(SCROLLINFO);
 			GetScrollInfo(hDlg, SB_VERT, &si);
+			si.nPos   = Hex.OffsetVisibleFirst / RowCount;
 
 			// WMSZ_TOP is buggy
 			RECT *r = (RECT *) lParam;
@@ -317,8 +308,9 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 		case WM_GETMINMAXINFO:
 		{
 			MINMAXINFO *pInfo = (MINMAXINFO *)lParam;
-			pInfo->ptMinTrackSize.x = Hex.DialogSizeX;
-			pInfo->ptMaxTrackSize.x = Hex.DialogSizeX;
+			GetWindowRect(hDlg, &wr);
+			pInfo->ptMinTrackSize.x = wr.right - wr.left;
+			pInfo->ptMaxTrackSize.x = wr.right - wr.left;
 			// Manual adjust to account for cell parameters
 			pInfo->ptMinTrackSize.y = Hex.CellHeight * 2 + ClientTopGap;
 			return 0;
@@ -371,9 +363,11 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 				while (ShowCursor(true) < 0);
 				while (ShowCursor(false) >= 0);
 			}
+
 			GetWindowRect(hDlg, &wr);
-			Hex.DialogSizeY = wr.bottom - wr.top;
-			init = 0;
+			Hex.DialogPosX = wr.left;
+			Hex.DialogPosY = wr.top;
+
 			KillHexEditor();
 			return 0;
 	}
@@ -386,12 +380,12 @@ void DoHexEditor()
 
 	if (!HexEditorHWnd)
 	{
-		memset(&wndclass,0,sizeof(wndclass));
-		wndclass.cbSize=sizeof(WNDCLASSEX);
-		wndclass.style         = CS_HREDRAW | CS_VREDRAW ;
-		wndclass.lpfnWndProc   = HexEditorProc ;
-		wndclass.cbClsExtra    = 0 ;
-		wndclass.cbWndExtra    = 0 ;
+		memset(&wndclass, 0, sizeof(wndclass));
+		wndclass.cbSize        = sizeof(WNDCLASSEX);
+		wndclass.style         = CS_HREDRAW | CS_VREDRAW;
+		wndclass.lpfnWndProc   = HexEditorProc;
+		wndclass.cbClsExtra    = 0;
+		wndclass.cbWndExtra    = 0;
 		wndclass.hInstance     = ghInstance;
 		wndclass.hIcon         = LoadIcon(ghInstance, MAKEINTRESOURCE(IDI_GENS));
 		wndclass.hIconSm       = LoadIcon(ghInstance, MAKEINTRESOURCE(IDI_GENS));
@@ -410,10 +404,10 @@ void DoHexEditor()
 			"HEXEDITOR",
 			"HexEditor",
 			WS_SYSMENU | WS_SIZEBOX | WS_MINIMIZEBOX | WS_VSCROLL,
-			CW_USEDEFAULT,
-			CW_USEDEFAULT,
-			Hex.DialogSizeX,
-			Hex.DialogSizeY,
+			Hex.DialogPosX,
+			Hex.DialogPosY,
+			Hex.CellWidth * RowCount + Hex.GapHeaderH,
+			Hex.CellHeight * (Hex.OffsetVisibleTotal + 1) + 1,
 			NULL,
 			NULL,
 			ghInstance,

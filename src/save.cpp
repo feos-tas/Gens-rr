@@ -35,6 +35,7 @@
 #include "movie.h"
 #include "ram_search.h"
 #include "ramwatch.h"
+#include "hexeditor.h"
 #include "luascript.h"
 #include <direct.h>
 #include "hackdefs.h"
@@ -2426,7 +2427,6 @@ int Save_Config(char *File_Name)
 	wsprintf(Str_Tmp,"%d",PWMVol);
 	WritePrivateProfileString("Sound", "PWM Volume", Str_Tmp, Conf_File);
 
-
 	wsprintf(Str_Tmp, "%d", Country);
 	WritePrivateProfileString("CPU", "Country", Str_Tmp, Conf_File);
 	wsprintf(Str_Tmp, "%d", Country_Order[0]);
@@ -2435,14 +2435,21 @@ int Save_Config(char *File_Name)
 	WritePrivateProfileString("CPU", "Prefered Country 2", Str_Tmp, Conf_File);
 	wsprintf(Str_Tmp, "%d", Country_Order[2]);
 	WritePrivateProfileString("CPU", "Prefered Country 3", Str_Tmp, Conf_File);
-
 	wsprintf(Str_Tmp, "%d", SegaCD_Accurate);
 	WritePrivateProfileString("CPU", "Perfect synchro between main and sub CPU (Sega CD)", Str_Tmp, Conf_File);
-
 	wsprintf(Str_Tmp, "%d", MSH2_Speed);
 	WritePrivateProfileString("CPU", "Main SH2 Speed", Str_Tmp, Conf_File);
 	wsprintf(Str_Tmp, "%d", SSH2_Speed);
 	WritePrivateProfileString("CPU", "Slave SH2 Speed", Str_Tmp, Conf_File);
+
+	wsprintf(Str_Tmp, "%d", Hex.DialogPosX);
+	WritePrivateProfileString("Tools", "Hex Editor X Position", Str_Tmp, Conf_File);
+	wsprintf(Str_Tmp, "%d", Hex.DialogPosY);
+	WritePrivateProfileString("Tools", "Hex Editor Y Position", Str_Tmp, Conf_File);
+	wsprintf(Str_Tmp, "%d", Hex.OffsetVisibleFirst);
+	WritePrivateProfileString("Tools", "Hex Editor First Offset", Str_Tmp, Conf_File);
+	wsprintf(Str_Tmp, "%d", Hex.OffsetVisibleTotal);
+	WritePrivateProfileString("Tools", "Hex Editor Total Offset", Str_Tmp, Conf_File);
 
 	wsprintf(Str_Tmp, "%d", Fast_Blur & 1);
 	WritePrivateProfileString("Options", "Fast Blur", Str_Tmp, Conf_File);
@@ -2946,14 +2953,11 @@ int Load_Config(char *File_Name, void *Game_Active)
 	CDDAVol = (GetPrivateProfileInt("Sound", "CDDA Volume", 256, Conf_File) & 0x1FF);
 	PWMVol = (GetPrivateProfileInt("Sound", "PWM Volume", 256, Conf_File) & 0x1FF);
 
-
 	Country = GetPrivateProfileInt("CPU", "Country", -1, Conf_File);
 	Country_Order[0] = GetPrivateProfileInt("CPU", "Prefered Country 1", 0, Conf_File);
 	Country_Order[1] = GetPrivateProfileInt("CPU", "Prefered Country 2", 1, Conf_File);
 	Country_Order[2] = GetPrivateProfileInt("CPU", "Prefered Country 3", 2, Conf_File);
-
 	SegaCD_Accurate = GetPrivateProfileInt("CPU", "Perfect synchro between main and sub CPU (Sega CD)", 1, Conf_File);
-
 	MSH2_Speed = GetPrivateProfileInt("CPU", "Main SH2 Speed", 100, Conf_File);
 	SSH2_Speed = GetPrivateProfileInt("CPU", "Slave SH2 Speed", 100, Conf_File);
 
@@ -2961,6 +2965,11 @@ int Load_Config(char *File_Name, void *Game_Active)
 	if (SSH2_Speed < 0) SSH2_Speed = 0;
 
 	Check_Country_Order();
+
+	Hex.DialogPosX = GetPrivateProfileInt("Tools", "Hex Editor X Position", 0, Conf_File);
+	Hex.DialogPosY = GetPrivateProfileInt("Tools", "Hex Editor Y Position", 0, Conf_File);
+	Hex.OffsetVisibleFirst = GetPrivateProfileInt("Tools", "Hex Editor First Offset", 0, Conf_File);
+	Hex.OffsetVisibleTotal = GetPrivateProfileInt("Tools", "Hex Editor Total Offset", 16, Conf_File);
 
 	Fast_Blur = GetPrivateProfileInt("Options", "Fast Blur", 0, Conf_File);
 	Show_FPS = GetPrivateProfileInt("Options", "FPS", 0, Conf_File);
