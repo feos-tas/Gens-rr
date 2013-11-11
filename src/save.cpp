@@ -1685,7 +1685,7 @@ int Import_SegaCD(unsigned char * Data)
 		ImportDataAuto(&H_Dot, Data, offset, 4);
 
 		ImportDataAuto(&Context_sub68K.cycles_needed, Data, offset, 44);
-		ImportDataAuto(&Rom_Data[0x72], Data, offset, 2); 	//Sega CD games can overwrite the low two bytes of the Xontal Interrupt vector
+		ImportDataAuto(&Rom_Data[0x72], Data, offset, 2); 	//Sega CD games can overwrite the low two bytes of the Horizontal Interrupt vector
 
 		ImportDataAuto(&fatal_mp3_error, Data, offset, 4);
 		ImportDataAuto(&Current_OUT_Pos, Data, offset, 4);
@@ -1918,7 +1918,7 @@ void Export_SegaCD(unsigned char * Data)
 		ExportDataAuto(&H_Dot, Data, offset, 4);
 
 		ExportDataAuto(&Context_sub68K.cycles_needed, Data, offset, 44);
-		ExportDataAuto(&Rom_Data[0x72], Data, offset, 2);	//Sega CD games can overwrite the low two bytes of the Xontal Interrupt vector
+		ExportDataAuto(&Rom_Data[0x72], Data, offset, 2);	//Sega CD games can overwrite the low two bytes of the Horizontal Interrupt vector
 
 		ExportDataAuto(&fatal_mp3_error, Data, offset, 4);
 		ExportDataAuto(&Current_OUT_Pos, Data, offset, 4);
