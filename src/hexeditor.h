@@ -9,11 +9,11 @@ typedef struct {
 	bool FontBold;
 	unsigned int
 		FontHeight, FontWidth, FontWeight,
-		GapFontH, GapFontV, GapHeaderH, GapHeaderV,
+		GapFontX, GapFontY, GapHeaderX, GapHeaderY,
 		CellHeight, CellWidth,
-		OffsetVisibleFirst, OffsetVisibleLast, OffsetVisibleTotal,
 		DialogPosX, DialogPosY,
-		AddressSelectedFirst, AddressSelectedLast, AddressSelectedTotal,
+		OffsetVisibleFirst, OffsetVisibleTotal,
+		AddressSelectedFirst, AddressSelectedTotal,
 		MemoryRegion;
 	COLORREF
 		ColorFont, ColorBG, ColorSelection;
