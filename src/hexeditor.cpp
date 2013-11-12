@@ -38,7 +38,7 @@ HexParameters Hex =
 	0, 16,											// visible offset	// first, total
 	0, 0, 0,										// selected address // first, total, last
 	0xff0000,										// memory region	//
-	0x00000000, 0x00ffffff, 0x00ffdc00,				// colors			// font, BG, selection
+	0x00000000, 0x00ffffff,							// colors			// font, BG
 };
 
 HFONT HexFont = CreateFont(
@@ -299,6 +299,20 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 				for (row = 0; row < RowCount; row++)
 				{
 					MoveToEx(HexDC, row * Hex.CellWidth + Hex.GapHeaderX, line * Hex.CellHeight + Hex.GapHeaderY, NULL);
+					if (
+						(Hex.AddressSelectedTotal > 0) &&
+						((Hex.OffsetVisibleFirst + line * RowCount + row) >= Hex.AddressSelectedFirst) &&
+						((Hex.OffsetVisibleFirst + line * RowCount + row) <= Hex.AddressSelectedLast)
+					)
+					{	
+						SetBkColor(HexDC, Hex.ColorFont);
+						SetTextColor(HexDC, Hex.ColorBG);
+					}
+					else
+					{
+						SetBkColor(HexDC, Hex.ColorBG);
+						SetTextColor(HexDC, Hex.ColorFont);
+					}					
 					sprintf(buf, "%02X", (int) Ram_68k[Hex.OffsetVisibleFirst + line * RowCount + row]);
 					TextOut(HexDC, 0, 0, buf, strlen(buf));
 				}
@@ -390,12 +404,12 @@ void HexUpdateCaption()
 	if (Hex.AddressSelectedTotal == 0)
 		sprintf(
 			str,
-			"Hex Editor"
+			"Hex Editor: RAM M68K"
 		);
 	else if (Hex.AddressSelectedTotal == 1)
 		sprintf(
 			str,
-			"M68K: $%06X",
+			"RAM M68K: $%06X",
 			Hex.AddressSelectedFirst + Hex.MemoryRegion
 		);
 	else if (Hex.AddressSelectedTotal > 1)
@@ -448,8 +462,10 @@ void HexSelectAddress(int x, int y)
 	else
 	{
 		Hex.AddressSelectedFirst = y/Hex.CellHeight*RowCount + x/Hex.CellWidth + Hex.OffsetVisibleFirst;
+		Hex.AddressSelectedLast  = Hex.AddressSelectedFirst;
 		Hex.AddressSelectedTotal = 1;
 	}
+	HexUpdateDialog();
 }
 
 void HexDestroyDialog()
