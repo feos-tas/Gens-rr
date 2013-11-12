@@ -3181,7 +3181,7 @@ long PASCAL WinProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					break;
 
 				case ID_HEX_EDITOR:
-					DoHexEditor();
+					HexCreateDialog();
 					break;
 
 				case IDC_NEW_LUA_SCRIPT:

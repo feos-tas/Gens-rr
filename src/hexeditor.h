@@ -2,8 +2,10 @@
 #define HEXEDITOR_H
 
 extern HWND HexEditorHWnd;
-extern void DoHexEditor();
-extern void UpdateHexEditor();
+extern void HexCreateDialog();
+extern void HexUpdateDialog();
+void HexDestroyDialog();
+void HexUpdateCaption();
 
 typedef struct {
 	bool FontBold;

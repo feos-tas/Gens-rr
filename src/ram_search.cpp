@@ -1370,7 +1370,7 @@ void Update_RAM_Search() //keeps RAM values up to date in the search and watch w
 
 	if(HexEditorHWnd)
 	{
-		UpdateHexEditor();
+		HexUpdateDialog();
 	}
 }
 

@@ -24,7 +24,6 @@
 
 HWND HexEditorHWnd;
 HDC HexDC;
-RECT wr;
 unsigned int
 	ClientTopGap = 0,
 	RowCount = 16; // Offset consists of 16 bytes
@@ -60,62 +59,9 @@ HFONT HexFont = CreateFont(
 	"Courier New"		// name
 );
 
-void UpdateCaption()
-{/*
-	static char str[1000];
-
-	if (CursorEndAddy == -1)
-	{
-		if (EditingMode == MODE_NES_FILE)
-		{
-			if (CursorStartAddy < 16)
-				sprintf(str, "Hex Editor - ROM Header Offset 0x%06x", CursorStartAddy);
-			else if (CursorStartAddy - 16 < (int)PRGsize[0])
-				sprintf(str, "Hex Editor - (PRG) ROM Offset 0x%06x", CursorStartAddy);
-			else if (CursorStartAddy - 16 - PRGsize[0] < (int)CHRsize[0])
-				sprintf(str, "Hex Editor - (CHR) ROM Offset 0x%06x", CursorStartAddy);
-		} else
-		{
-			sprintf(str, "Hex Editor - %s Offset 0x%06x", EditString[EditingMode], CursorStartAddy);
-		}
-
-		if (EditingMode == MODE_NES_MEMORY && symbDebugEnabled)
-		{
-			// when watching RAM we may as well see Symbolic Debug names
-			Name* node = findNode(getNamesPointerForAddress(CursorStartAddy), CursorStartAddy);
-			if (node)
-			{
-				strcat(str, " - ");
-				strcat(str, node->name);
-			}
-		}
-	} else
-	{
-		sprintf(str, "Hex Editor - %s Offset 0x%06x - 0x%06x, 0x%x bytes selected ",
-			EditString[EditingMode], CursorStartAddy, CursorEndAddy, CursorEndAddy - CursorStartAddy + 1);
-	}*/
-	SetWindowText(HexEditorHWnd, "Hex Editor");
-	return;
-}
-
-void UpdateHexEditor()
-{
-	InvalidateRect(HexEditorHWnd, NULL, FALSE);
-}
-
-void KillHexEditor()
-{
-	DialogsOpen--;	
-	ReleaseDC(HexEditorHWnd, HexDC);
-	DestroyWindow(HexEditorHWnd);
-	UnregisterClass("HEXEDITOR", ghInstance);
-	HexEditorHWnd = 0;
-	return;
-}
-
 LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-	RECT cr;
+	RECT r, wr, cr;
 	PAINTSTRUCT ps;
 	SCROLLINFO si;
 
@@ -132,22 +78,29 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 				while (ShowCursor(false) >= 0);
 				while (ShowCursor(true) < 0);
 			}
-
-			GetWindowRect(hDlg, &wr);
-			GetClientRect(hDlg, &cr);
-			ClientTopGap = wr.bottom - wr.top - cr.bottom + 1;
+			
+			SetRect(
+				&r, 0, 0,
+				(Hex.CellWidth + 1) * RowCount + Hex.GapHeaderX,
+				Hex.CellHeight * (Hex.OffsetVisibleTotal + 1) + 1
+			);
 			// Automatic adjust to account for menu, scrollbar and OS style
-			AdjustWindowRectEx(&wr, GetWindowLong(hDlg, GWL_STYLE), (GetMenu(hDlg) > 0), GetWindowLong(hDlg, GWL_EXSTYLE));
-
+			AdjustWindowRectEx(
+				&r,
+				GetWindowLong(hDlg, GWL_STYLE),
+				(GetMenu(hDlg) > 0),
+				GetWindowLong(hDlg, GWL_EXSTYLE)
+			);
 			SetWindowPos(
-				hDlg,
-				NULL,
-				wr.left,
-				wr.top,
-				wr.right - wr.left,
-				wr.bottom - wr.top,
+				hDlg, NULL,
+				Hex.DialogPosX,
+				Hex.DialogPosY,
+				r.right - r.left,
+				r.bottom - r.top,
 				SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_SHOWWINDOW
 			);
+			GetClientRect(hDlg, &cr);
+			ClientTopGap = r.bottom - r.top - cr.bottom + 1;
 	
 			ZeroMemory(&si, sizeof(SCROLLINFO));
 			si.cbSize = sizeof(si);
@@ -236,10 +189,10 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 				si.nPos = si.nMin;
 			if ((si.nPos + (int) si.nPage) > si.nMax)
 				si.nPos = si.nMax - si.nPage;
-
+			
 			Hex.OffsetVisibleFirst = si.nPos * RowCount;
 			SetScrollInfo(hDlg, SB_VERT, &si, TRUE);
-			UpdateHexEditor();
+			HexUpdateDialog();
 			return 0;
 		}
 		break;
@@ -265,7 +218,7 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 
 			Hex.OffsetVisibleFirst = si.nPos * RowCount;
 			SetScrollInfo(hDlg, SB_VERT, &si, TRUE);
-			UpdateHexEditor();
+			HexUpdateDialog();
 			return 0;
 		}
 		break;
@@ -293,7 +246,7 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 				Hex.OffsetVisibleTotal = si.nPage;
 				SetScrollInfo(hDlg, SB_VERT, &si, TRUE);
 			}
-			UpdateHexEditor();
+			HexUpdateDialog();
 			return 0;
 		}
 		break;
@@ -362,23 +315,24 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 		break;
 
 		case WM_CLOSE:
+		{
 			if (Full_Screen)
 			{
 				while (ShowCursor(true) < 0);
 				while (ShowCursor(false) >= 0);
 			}
-
 			GetWindowRect(hDlg, &wr);
 			Hex.DialogPosX = wr.left;
 			Hex.DialogPosY = wr.top;
-
-			KillHexEditor();
+			HexDestroyDialog();
 			return 0;
+		}
+		break;
 	}
 	return DefWindowProc(hDlg, uMsg, wParam, lParam);
 }
 
-void DoHexEditor()
+void HexCreateDialog()
 {
 	WNDCLASSEX wndclass;
 
@@ -408,10 +362,10 @@ void DoHexEditor()
 			"HEXEDITOR",
 			"HexEditor",
 			WS_SYSMENU | WS_SIZEBOX | WS_MINIMIZEBOX | WS_VSCROLL,
-			Hex.DialogPosX,
-			Hex.DialogPosY,
-			(Hex.CellWidth + 1) * RowCount + Hex.GapHeaderX,
-			Hex.CellHeight * (Hex.OffsetVisibleTotal + 1) + 1,
+			CW_USEDEFAULT,
+			CW_USEDEFAULT,
+			CW_USEDEFAULT,
+			CW_USEDEFAULT,
 			NULL,
 			NULL,
 			ghInstance,
@@ -419,13 +373,66 @@ void DoHexEditor()
 		);
 
 		ShowWindow(HexEditorHWnd, SW_SHOW);
-		UpdateCaption();
+		HexUpdateCaption();
 		DialogsOpen++;
 	}
 	else
 	{
 		ShowWindow(HexEditorHWnd, SW_SHOWNORMAL);
 		SetForegroundWindow(HexEditorHWnd);
-		UpdateCaption();
+		HexUpdateCaption();
 	}
+}
+
+void HexUpdateDialog()
+{
+	InvalidateRect(HexEditorHWnd, NULL, FALSE);
+}
+
+void HexUpdateCaption()
+{
+/*	static char str[1000];
+
+	if (CursorEndAddy == -1)
+	{
+		if (EditingMode == MODE_NES_FILE)
+		{
+			if (CursorStartAddy < 16)
+				sprintf(str, "Hex Editor - ROM Header Offset 0x%06x", CursorStartAddy);
+			else if (CursorStartAddy - 16 < (int)PRGsize[0])
+				sprintf(str, "Hex Editor - (PRG) ROM Offset 0x%06x", CursorStartAddy);
+			else if (CursorStartAddy - 16 - PRGsize[0] < (int)CHRsize[0])
+				sprintf(str, "Hex Editor - (CHR) ROM Offset 0x%06x", CursorStartAddy);
+		} else
+		{
+			sprintf(str, "Hex Editor - %s Offset 0x%06x", EditString[EditingMode], CursorStartAddy);
+		}
+
+		if (EditingMode == MODE_NES_MEMORY && symbDebugEnabled)
+		{
+			// when watching RAM we may as well see Symbolic Debug names
+			Name* node = findNode(getNamesPointerForAddress(CursorStartAddy), CursorStartAddy);
+			if (node)
+			{
+				strcat(str, " - ");
+				strcat(str, node->name);
+			}
+		}
+	} else
+	{
+		sprintf(str, "Hex Editor - %s Offset 0x%06x - 0x%06x, 0x%x bytes selected ",
+			EditString[EditingMode], CursorStartAddy, CursorEndAddy, CursorEndAddy - CursorStartAddy + 1);
+	}*/
+	SetWindowText(HexEditorHWnd, "Hex Editor");
+	return;
+}
+
+void HexDestroyDialog()
+{
+	DialogsOpen--;	
+	ReleaseDC(HexEditorHWnd, HexDC);
+	DestroyWindow(HexEditorHWnd);
+	UnregisterClass("HEXEDITOR", ghInstance);
+	HexEditorHWnd = 0;
+	return;
 }
