@@ -24,6 +24,7 @@
 
 HWND HexEditorHWnd;
 HDC HexDC;
+SCROLLINFO HexSI;
 unsigned int
 	ClientTopGap = 0,
 	RowCount = 16; // Offset consists of 16 bytes
@@ -63,7 +64,6 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 {
 	RECT r, wr, cr;
 	PAINTSTRUCT ps;
-	SCROLLINFO si;
 
 	switch(uMsg)
 	{
@@ -101,15 +101,9 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 			);
 			GetClientRect(hDlg, &cr);
 			ClientTopGap = r.bottom - r.top - cr.bottom + 1;
-	
-			ZeroMemory(&si, sizeof(SCROLLINFO));
-			si.cbSize = sizeof(si);
-			si.fMask  = SIF_RANGE | SIF_PAGE;
-			si.nMin   = 0;
-			si.nMax   = _68K_RAM_SIZE / RowCount;
-			si.nPage  = Hex.OffsetVisibleTotal;
-			si.nPos   = Hex.OffsetVisibleFirst / RowCount;
-			SetScrollInfo(hDlg, SB_VERT, &si, TRUE);
+
+			HexUpdateScrollInfo();
+			SetScrollInfo(hDlg, SB_VERT, &HexSI, TRUE);
 			return 0;
 		}
 		break;
@@ -155,12 +149,8 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 */
 		case WM_VSCROLL:
 		{
-			ZeroMemory(&si, sizeof(SCROLLINFO));
-			si.fMask = SIF_ALL;
-			si.cbSize = sizeof(SCROLLINFO);
-			si.nPage  = Hex.OffsetVisibleTotal;
-			si.nPos   = Hex.OffsetVisibleFirst / RowCount;
-			GetScrollInfo(hDlg, SB_VERT, &si);
+			HexUpdateScrollInfo();
+			GetScrollInfo(hDlg, SB_VERT, &HexSI);
 
 			switch(LOWORD(wParam))
 			{
@@ -169,29 +159,29 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 				case SB_BOTTOM:
 					break;
 				case SB_LINEUP:
-					si.nPos--;
+					HexSI.nPos--;
 					break;
 				case SB_LINEDOWN:
-					si.nPos++;
+					HexSI.nPos++;
 					break;
 				case SB_PAGEUP:
-					si.nPos -= si.nPage;
+					HexSI.nPos -= HexSI.nPage;
 					break;
 				case SB_PAGEDOWN:
-					si.nPos += si.nPage;
+					HexSI.nPos += HexSI.nPage;
 					break;
 				case SB_THUMBPOSITION:
 				case SB_THUMBTRACK:
-					si.nPos = si.nTrackPos;
+					HexSI.nPos = HexSI.nTrackPos;
 					break;
 			}
-			if (si.nPos < si.nMin)
-				si.nPos = si.nMin;
-			if ((si.nPos + (int) si.nPage) > si.nMax)
-				si.nPos = si.nMax - si.nPage;
+			if (HexSI.nPos < HexSI.nMin)
+				HexSI.nPos = HexSI.nMin;
+			if ((HexSI.nPos + (int) HexSI.nPage) > HexSI.nMax)
+				HexSI.nPos = HexSI.nMax - HexSI.nPage;
 			
-			Hex.OffsetVisibleFirst = si.nPos * RowCount;
-			SetScrollInfo(hDlg, SB_VERT, &si, TRUE);
+			Hex.OffsetVisibleFirst = HexSI.nPos * RowCount;
+			SetScrollInfo(hDlg, SB_VERT, &HexSI, TRUE);
 			HexUpdateDialog();
 			return 0;
 		}
@@ -200,24 +190,20 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 		case WM_MOUSEWHEEL:
 		{
 			int WheelDelta = (short) HIWORD(wParam);
-
-			ZeroMemory(&si, sizeof(SCROLLINFO));
-			si.fMask  = SIF_ALL;
-			si.cbSize = sizeof(SCROLLINFO);
-			si.nPos   = Hex.OffsetVisibleFirst / RowCount;
-			GetScrollInfo(hDlg, SB_VERT, &si);
+			HexUpdateScrollInfo();
+			GetScrollInfo(hDlg, SB_VERT, &HexSI);
 
 			if (WheelDelta < 0)
-				si.nPos += si.nPage;
+				HexSI.nPos += HexSI.nPage;
 			if (WheelDelta > 0)
-				si.nPos -= si.nPage;
-			if (si.nPos < si.nMin)
-				si.nPos = si.nMin;
-			if ((si.nPos + (int) si.nPage) > si.nMax)
-				si.nPos = si.nMax - si.nPage;
+				HexSI.nPos -= HexSI.nPage;
+			if (HexSI.nPos < HexSI.nMin)
+				HexSI.nPos = HexSI.nMin;
+			if ((HexSI.nPos + (int) HexSI.nPage) > HexSI.nMax)
+				HexSI.nPos = HexSI.nMax - HexSI.nPage;
 
-			Hex.OffsetVisibleFirst = si.nPos * RowCount;
-			SetScrollInfo(hDlg, SB_VERT, &si, TRUE);
+			Hex.OffsetVisibleFirst = HexSI.nPos * RowCount;
+			SetScrollInfo(hDlg, SB_VERT, &HexSI, TRUE);
 			HexUpdateDialog();
 			return 0;
 		}
@@ -225,11 +211,8 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 
 		case WM_SIZING:
 		{
-			ZeroMemory(&si, sizeof(SCROLLINFO));
-			si.fMask  = SIF_ALL;
-			si.cbSize = sizeof(SCROLLINFO);
-			GetScrollInfo(hDlg, SB_VERT, &si);
-			si.nPos   = Hex.OffsetVisibleFirst / RowCount;
+			HexUpdateScrollInfo();
+			GetScrollInfo(hDlg, SB_VERT, &HexSI);
 
 			RECT *r = (RECT *) lParam;
 
@@ -238,13 +221,13 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 				int height = r->bottom - r->top;
 				// Manual adjust to account for cell parameters
 				r->bottom = r->top + height - ((height - ClientTopGap) % Hex.CellHeight);
-				si.nPage = (height - ClientTopGap) / Hex.CellHeight - 1;
-				if ((si.nPos + (int) si.nPage) > si.nMax)
-					si.nPos = si.nMax - si.nPage;
+				HexSI.nPage = (height - ClientTopGap) / Hex.CellHeight - 1;
+				if ((HexSI.nPos + (int) HexSI.nPage) > HexSI.nMax)
+					HexSI.nPos = HexSI.nMax - HexSI.nPage;
 
-				Hex.OffsetVisibleFirst = si.nPos * RowCount;
-				Hex.OffsetVisibleTotal = si.nPage;
-				SetScrollInfo(hDlg, SB_VERT, &si, TRUE);
+				Hex.OffsetVisibleFirst = HexSI.nPos * RowCount;
+				Hex.OffsetVisibleTotal = HexSI.nPage;
+				SetScrollInfo(hDlg, SB_VERT, &HexSI, TRUE);
 			}
 			HexUpdateDialog();
 			return 0;
@@ -425,6 +408,17 @@ void HexUpdateCaption()
 	}*/
 	SetWindowText(HexEditorHWnd, "Hex Editor");
 	return;
+}
+
+void HexUpdateScrollInfo()
+{
+	ZeroMemory(&HexSI, sizeof(SCROLLINFO));
+	HexSI.cbSize = sizeof(HexSI);
+	HexSI.fMask  = SIF_ALL;
+	HexSI.nMin   = 0;
+	HexSI.nMax   = _68K_RAM_SIZE / RowCount;
+	HexSI.nPage  = Hex.OffsetVisibleTotal;
+	HexSI.nPos   = Hex.OffsetVisibleFirst / RowCount;
 }
 
 void HexDestroyDialog()

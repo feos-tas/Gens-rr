@@ -4,8 +4,10 @@
 extern HWND HexEditorHWnd;
 extern void HexCreateDialog();
 extern void HexUpdateDialog();
+
 void HexDestroyDialog();
 void HexUpdateCaption();
+void HexUpdateScrollInfo();
 
 typedef struct {
 	bool FontBold;
