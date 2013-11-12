@@ -1,14 +1,6 @@
 #ifndef HEXEDITOR_H
 #define HEXEDITOR_H
 
-extern HWND HexEditorHWnd;
-extern void HexCreateDialog();
-extern void HexUpdateDialog();
-
-void HexDestroyDialog();
-void HexUpdateCaption();
-void HexUpdateScrollInfo();
-
 typedef struct {
 	bool FontBold;
 	unsigned int
@@ -17,12 +9,15 @@ typedef struct {
 		CellHeight, CellWidth,
 		DialogPosX, DialogPosY,
 		OffsetVisibleFirst, OffsetVisibleTotal,
-		AddressSelectedFirst, AddressSelectedTotal,
+		AddressSelectedFirst, AddressSelectedTotal, AddressSelectedLast,
 		MemoryRegion;
 	COLORREF
 		ColorFont, ColorBG, ColorSelection;
 } HexParameters;
 
+extern HWND HexEditorHWnd;
 extern HexParameters Hex;
+extern void HexCreateDialog();
+extern void HexUpdateDialog();
 
 #endif

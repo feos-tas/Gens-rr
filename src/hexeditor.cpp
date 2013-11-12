@@ -5,29 +5,27 @@
 #include "mem_sh2.h"
 #include "G_main.h"
 #include "G_ddraw.h"
-#include "G_dsound.h"
 #include "ram_search.h"
 #include "hexeditor.h"
-#include "ramwatch.h"
-#include "luascript.h"
-#include <assert.h>
-#include <commctrl.h>
-#include <list>
-#include <vector>
-
-#ifdef _WIN32
-   #include "BaseTsd.h"
-   typedef INT_PTR intptr_t;
-#else
-   #include "stdint.h"
-#endif
+#include <windowsx.h>
 
 HWND HexEditorHWnd;
 HDC HexDC;
 SCROLLINFO HexSI;
+
+int
+	MouseX,
+	MouseY;
+
 unsigned int
 	ClientTopGap = 0,
 	RowCount = 16; // Offset consists of 16 bytes
+
+void
+	HexDestroyDialog(),
+	HexUpdateCaption(),
+	HexUpdateScrollInfo(),
+	HexSelectAddress(int x, int y);
 
 HexParameters Hex =
 {
@@ -38,7 +36,7 @@ HexParameters Hex =
 	Hex.FontWidth*2 + Hex.GapFontX,					// cell				// width
 	0, 0,											// dialog pos		// X, Y
 	0, 16,											// visible offset	// first, total
-	0, 0,											// selected address // first, total
+	0, 0, 0,										// selected address // first, total, last
 	0xff0000,										// memory region	//
 	0x00000000, 0x00ffffff, 0x00ffdc00,				// colors			// font, BG, selection
 };
@@ -101,52 +99,65 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 			);
 			GetClientRect(hDlg, &cr);
 			ClientTopGap = r.bottom - r.top - cr.bottom + 1;
+			Hex.AddressSelectedTotal = 0;
 
 			HexUpdateScrollInfo();
 			SetScrollInfo(hDlg, SB_VERT, &HexSI, TRUE);
 			return 0;
 		}
 		break;
-/*
+
 		case WM_COMMAND:
 		{
-			switch(wParam)
+/*			switch(wParam)
 			{
-			case IDC_SAVE:
+				case IDC_SAVE:
 				{
-				char fname[2048];
-				strcpy(fname,"dump.bin");
-				if(Change_File_S(fname,".","Save Full Dump As...","All Files\0*.*\0\0","*.*",hDlg))
-				{
-					FILE *out=fopen(fname,"wb+");
-					int i;
-					for (i=0;i<sizeof(Ram_68k);++i)
+					char fname[2048];
+					strcpy(fname,"dump.bin");
+					if(Change_File_S(fname,".","Save Full Dump As...","All Files\0*.*\0\0","*.*",hDlg))
 					{
-						fname[i&2047]=Ram_68k[i^1];
-						if ((i&2047)==2047)
-							fwrite(fname,1,sizeof(fname),out);
+						FILE *out=fopen(fname,"wb+");
+						int i;
+						for (i=0;i<sizeof(Ram_68k);++i)
+						{
+							fname[i&2047]=Ram_68k[i^1];
+							if ((i&2047)==2047)
+								fwrite(fname,1,sizeof(fname),out);
+						}
+						fwrite(fname,1,i&2047,out);
+						fclose(out);
 					}
-					fwrite(fname,1,i&2047,out);
-					fclose(out);
-				}
 				}
 				break;
 
-			case IDC_BUTTON1:
+				case IDC_BUTTON1:
 				{
-				char fname[2048];
-				GetDlgItemText(hDlg,IDC_EDIT1,fname,2047);
-				int CurPos;
-				if ((strnicmp(fname,"ff",2)==0) && sscanf(fname+2,"%x",&CurPos))
-				{
-					SetScrollPos(GetDlgItem(hDlg,IDC_SCROLLBAR1),SB_CTL,(CurPos>>4),TRUE);
-					Update_RAM_Dump();
-				}
+					char fname[2048];
+					GetDlgItemText(hDlg,IDC_EDIT1,fname,2047);
+					int CurPos;
+					if ((strnicmp(fname,"ff",2)==0) && sscanf(fname+2,"%x",&CurPos))
+					{
+						SetScrollPos(GetDlgItem(hDlg,IDC_SCROLLBAR1),SB_CTL,(CurPos>>4),TRUE);
+						Update_RAM_Dump();
+					}
 				}
 				break;
 			}
-		}	break;
-*/
+*/		
+		}
+		break;
+
+		case WM_LBUTTONDOWN:
+		{
+			MouseX = GET_X_LPARAM(lParam);
+			MouseY = GET_Y_LPARAM(lParam);
+			HexSelectAddress(MouseX, MouseY);
+			HexUpdateCaption();
+			return 0;
+		}
+		break;
+
 		case WM_VSCROLL:
 		{
 			HexUpdateScrollInfo();
@@ -374,39 +385,29 @@ void HexUpdateDialog()
 
 void HexUpdateCaption()
 {
-/*	static char str[1000];
+	char str[100];
 
-	if (CursorEndAddy == -1)
-	{
-		if (EditingMode == MODE_NES_FILE)
-		{
-			if (CursorStartAddy < 16)
-				sprintf(str, "Hex Editor - ROM Header Offset 0x%06x", CursorStartAddy);
-			else if (CursorStartAddy - 16 < (int)PRGsize[0])
-				sprintf(str, "Hex Editor - (PRG) ROM Offset 0x%06x", CursorStartAddy);
-			else if (CursorStartAddy - 16 - PRGsize[0] < (int)CHRsize[0])
-				sprintf(str, "Hex Editor - (CHR) ROM Offset 0x%06x", CursorStartAddy);
-		} else
-		{
-			sprintf(str, "Hex Editor - %s Offset 0x%06x", EditString[EditingMode], CursorStartAddy);
-		}
+	if (Hex.AddressSelectedTotal == 0)
+		sprintf(
+			str,
+			"Hex Editor"
+		);
+	else if (Hex.AddressSelectedTotal == 1)
+		sprintf(
+			str,
+			"M68K: $%06X",
+			Hex.AddressSelectedFirst + Hex.MemoryRegion
+		);
+	else if (Hex.AddressSelectedTotal > 1)
+		sprintf(
+			str,
+			"RAM M68K: $%06X - $%06X (%d)",
+			Hex.AddressSelectedFirst + Hex.MemoryRegion,
+			Hex.AddressSelectedLast + Hex.MemoryRegion,
+			Hex.AddressSelectedTotal
+		);
 
-		if (EditingMode == MODE_NES_MEMORY && symbDebugEnabled)
-		{
-			// when watching RAM we may as well see Symbolic Debug names
-			Name* node = findNode(getNamesPointerForAddress(CursorStartAddy), CursorStartAddy);
-			if (node)
-			{
-				strcat(str, " - ");
-				strcat(str, node->name);
-			}
-		}
-	} else
-	{
-		sprintf(str, "Hex Editor - %s Offset 0x%06x - 0x%06x, 0x%x bytes selected ",
-			EditString[EditingMode], CursorStartAddy, CursorEndAddy, CursorEndAddy - CursorStartAddy + 1);
-	}*/
-	SetWindowText(HexEditorHWnd, "Hex Editor");
+	SetWindowText(HexEditorHWnd, str);
 	return;
 }
 
@@ -419,6 +420,36 @@ void HexUpdateScrollInfo()
 	HexSI.nMax   = _68K_RAM_SIZE / RowCount;
 	HexSI.nPage  = Hex.OffsetVisibleTotal;
 	HexSI.nPos   = Hex.OffsetVisibleFirst / RowCount;
+}
+
+void HexSelectAddress(int x, int y)
+{
+	x = x - Hex.GapHeaderX;
+	y = y - Hex.GapHeaderY;
+	
+	if (x < 0 && y >= 0)
+	{
+		Hex.AddressSelectedFirst = Hex.OffsetVisibleFirst + y / Hex.CellHeight * RowCount;
+		Hex.AddressSelectedLast  = Hex.AddressSelectedFirst + RowCount - 1;
+		Hex.AddressSelectedTotal = RowCount;
+	}
+	else if (y < 0 && x >=0)
+	{
+		Hex.AddressSelectedFirst = x / Hex.CellWidth + Hex.OffsetVisibleFirst;
+		Hex.AddressSelectedLast  = (Hex.OffsetVisibleTotal - 1) * RowCount + Hex.AddressSelectedFirst;
+		Hex.AddressSelectedTotal = Hex.OffsetVisibleTotal;
+	}
+	else if (y < 0 && x < 0)
+	{
+		Hex.AddressSelectedFirst = Hex.OffsetVisibleFirst;
+		Hex.AddressSelectedLast  = Hex.OffsetVisibleFirst + Hex.OffsetVisibleTotal * RowCount - 1;
+		Hex.AddressSelectedTotal = Hex.OffsetVisibleTotal * RowCount;
+	}
+	else
+	{
+		Hex.AddressSelectedFirst = y/Hex.CellHeight*RowCount + x/Hex.CellWidth + Hex.OffsetVisibleFirst;
+		Hex.AddressSelectedTotal = 1;
+	}
 }
 
 void HexDestroyDialog()
