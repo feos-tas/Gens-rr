@@ -280,7 +280,7 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 
 			RECT *r = (RECT *) lParam;
 
-			if (wParam == WMSZ_BOTTOM)
+			if (wParam == WMSZ_BOTTOM) // just in case...
 			{
 				int height = r->bottom - r->top;
 				// Manual adjust to account for cell parameters
@@ -293,12 +293,21 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 				Hex.OffsetVisibleTotal = si.nPage;
 				SetScrollInfo(hDlg, SB_VERT, &si, TRUE);
 			}
-			else
-			{
-				CopyRect(r, &wr);
-			}
 			UpdateHexEditor();
 			return 0;
+		}
+		break;
+
+		case WM_NCHITTEST:
+		{
+			LRESULT lRes = DefWindowProc(hDlg, uMsg, wParam, lParam);
+			if (
+				lRes == HTBOTTOMLEFT || lRes == HTBOTTOMRIGHT ||
+				lRes == HTTOPLEFT || lRes == HTTOPRIGHT || lRes == HTTOP ||
+				lRes == HTLEFT || lRes == HTRIGHT || lRes == HTSIZE
+			)
+				lRes = HTBORDER; // block resizing for all but HTBOTTOM
+			return lRes;
 		}
 		break;
 
