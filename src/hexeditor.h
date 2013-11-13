@@ -9,11 +9,19 @@ typedef struct {
 		CellHeight, CellWidth,
 		DialogPosX, DialogPosY,
 		OffsetVisibleFirst, OffsetVisibleTotal,
-		AddressSelectedFirst, AddressSelectedTotal, AddressSelectedLast,
+		AddressSelectedFirst, AddressSelectedTotal, AddressSelectedLast, SelectionStep,
 		MemoryRegion;
 	COLORREF
 		ColorFont, ColorBG, ColorSelection;
 } HexParameters;
+
+enum MousePos {
+	LEFTHEADER,
+	TOPHEADER,
+	CORNER,
+	CELL,
+	NO
+};
 
 extern HWND HexEditorHWnd;
 extern HexParameters Hex;

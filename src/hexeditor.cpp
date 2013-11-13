@@ -12,6 +12,7 @@
 HWND HexEditorHWnd;
 HDC HexDC;
 SCROLLINFO HexSI;
+MousePos ClickArea = NO;
 
 int
 	MouseX,
@@ -25,7 +26,10 @@ void
 	HexDestroyDialog(),
 	HexUpdateCaption(),
 	HexUpdateScrollInfo(),
-	HexSelectAddress(int x, int y);
+	HexSelectAddress(int Address, bool ButtonDown);
+
+int	
+	HexGetClickAddress(int x, int y);
 
 HexParameters Hex =
 {
@@ -36,8 +40,8 @@ HexParameters Hex =
 	Hex.FontWidth*2 + Hex.GapFontX,					// cell				// width
 	0, 0,											// dialog pos		// X, Y
 	0, 16,											// visible offset	// first, total
-	0, 0, 0,										// selected address // first, total, last
-	0xff0000,										// memory region	//
+	0, 0, 0, 1,										// selected address // first, total, last, step
+	0xff0000,										// memory region	// m68k ram
 	0x00000000, 0x00ffffff,							// colors			// font, BG
 };
 
@@ -152,7 +156,7 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 		{
 			MouseX = GET_X_LPARAM(lParam);
 			MouseY = GET_Y_LPARAM(lParam);
-			HexSelectAddress(MouseX, MouseY);
+			HexSelectAddress(HexGetClickAddress(MouseX, MouseY), 1);
 			HexUpdateCaption();
 			return 0;
 		}
@@ -222,10 +226,10 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 
 		case WM_SIZING:
 		{
+			RECT *r = (RECT *) lParam;		
+			
 			HexUpdateScrollInfo();
 			GetScrollInfo(hDlg, SB_VERT, &HexSI);
-
-			RECT *r = (RECT *) lParam;
 
 			if (wParam == WMSZ_BOTTOM) // just in case...
 			{
@@ -253,14 +257,14 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 				lRes == HTTOPLEFT || lRes == HTTOPRIGHT || lRes == HTTOP ||
 				lRes == HTLEFT || lRes == HTRIGHT || lRes == HTSIZE
 			)
-				lRes = HTBORDER; // block resizing for all but HTBOTTOM
+				lRes = HTBORDER; // forbid resizing for all but HTBOTTOM
 			return lRes;
 		}
 		break;
 
 		case WM_GETMINMAXINFO:
 		{
-			MINMAXINFO *pInfo = (MINMAXINFO *)lParam;
+			MINMAXINFO *pInfo = (MINMAXINFO *) lParam;
 			// Manual adjust to account for cell parameters
 			pInfo->ptMinTrackSize.y = Hex.CellHeight * 2 + ClientTopGap;
 			return 0;
@@ -436,34 +440,125 @@ void HexUpdateScrollInfo()
 	HexSI.nPos   = Hex.OffsetVisibleFirst / RowCount;
 }
 
-void HexSelectAddress(int x, int y)
+int HexGetClickAddress(int x, int y)
 {
+	int Address;
+
 	x = x - Hex.GapHeaderX;
 	y = y - Hex.GapHeaderY;
 	
 	if (x < 0 && y >= 0)
 	{
-		Hex.AddressSelectedFirst = Hex.OffsetVisibleFirst + y / Hex.CellHeight * RowCount;
-		Hex.AddressSelectedLast  = Hex.AddressSelectedFirst + RowCount - 1;
-		Hex.AddressSelectedTotal = RowCount;
+		ClickArea = TOPHEADER;
+		Address = Hex.OffsetVisibleFirst + y / Hex.CellHeight * RowCount;
 	}
 	else if (y < 0 && x >=0)
 	{
-		Hex.AddressSelectedFirst = x / Hex.CellWidth + Hex.OffsetVisibleFirst;
-		Hex.AddressSelectedLast  = (Hex.OffsetVisibleTotal - 1) * RowCount + Hex.AddressSelectedFirst;
-		Hex.AddressSelectedTotal = Hex.OffsetVisibleTotal;
+		ClickArea = LEFTHEADER;
+		Address = x / Hex.CellWidth + Hex.OffsetVisibleFirst;
 	}
 	else if (y < 0 && x < 0)
 	{
-		Hex.AddressSelectedFirst = Hex.OffsetVisibleFirst;
-		Hex.AddressSelectedLast  = Hex.OffsetVisibleFirst + Hex.OffsetVisibleTotal * RowCount - 1;
-		Hex.AddressSelectedTotal = Hex.OffsetVisibleTotal * RowCount;
+		ClickArea = CORNER;
+		Address = Hex.OffsetVisibleFirst;
+	}
+	else if (y >= 0 && x >= 0)
+	{
+		ClickArea = CELL;
+		Address = y / Hex.CellHeight * RowCount + x / Hex.CellWidth + Hex.OffsetVisibleFirst;
 	}
 	else
 	{
-		Hex.AddressSelectedFirst = y/Hex.CellHeight*RowCount + x/Hex.CellWidth + Hex.OffsetVisibleFirst;
-		Hex.AddressSelectedLast  = Hex.AddressSelectedFirst;
-		Hex.AddressSelectedTotal = 1;
+		ClickArea = NO;
+		Address = -1;
+	}
+	return Address;
+}
+
+void HexSelectAddress(int Address, bool ButtonDown)
+{
+/*
+	Selection is done as:
+	- cell (button down and up over 1 cell)
+		- bunch of cells (button down and up over different cells)
+	- line (button down and up over 1 offset)
+		- bunch of lines (button down and up over different offsets)
+	- row (button down and up over 1 address)
+		- bunch of rows (button down and up over different addresses)
+	- page (button down over top-left corner, button up switches to "bunch of cells" if mouse is moved)
+*/
+	switch (ClickArea)
+	{
+		case TOPHEADER:
+		{
+			if (ButtonDown)
+			{
+				Hex.AddressSelectedFirst = Address;
+				Hex.AddressSelectedLast  = Address + RowCount - 1;
+				Hex.AddressSelectedTotal = RowCount;
+				Hex.SelectionStep = 1;
+			}
+			else
+			{
+				Hex.AddressSelectedLast  = Address;
+				Hex.AddressSelectedTotal = Address - Hex.AddressSelectedFirst;
+			}
+		}
+		break;
+
+		case LEFTHEADER:
+		{
+			if (ButtonDown)
+			{
+				Hex.AddressSelectedFirst = Address;
+				Hex.AddressSelectedLast  = Address + (Hex.OffsetVisibleTotal - 1) * RowCount;
+				Hex.AddressSelectedTotal = Hex.OffsetVisibleTotal;
+				Hex.SelectionStep = RowCount;
+			}
+			else
+			{
+				Hex.AddressSelectedLast  = Address;
+				Hex.AddressSelectedTotal = Address - Hex.AddressSelectedFirst;
+			}
+		}
+		break;
+
+		case CORNER:
+		{
+			if (ButtonDown)
+			{
+				Hex.AddressSelectedFirst = Hex.OffsetVisibleFirst;
+				Hex.AddressSelectedLast  = Hex.OffsetVisibleFirst + Hex.OffsetVisibleTotal * RowCount - 1;
+				Hex.AddressSelectedTotal = Hex.OffsetVisibleTotal * RowCount;
+				Hex.SelectionStep = 1;
+			}
+			else
+			{
+				Hex.AddressSelectedLast  = Address;
+				Hex.AddressSelectedTotal = Address - Hex.AddressSelectedFirst;
+			}
+		}
+		break;
+
+		case CELL:
+		{
+			if (ButtonDown)
+			{
+				Hex.AddressSelectedFirst = Address;
+				Hex.AddressSelectedLast  = Address;
+				Hex.AddressSelectedTotal = 1;
+				Hex.SelectionStep = 1;
+			}
+			else
+			{
+				Hex.AddressSelectedLast  = Address;
+				Hex.AddressSelectedTotal = Address - Hex.AddressSelectedFirst;
+			}
+		}
+		break;
+
+		case NO:
+		break;
 	}
 	HexUpdateDialog();
 }
