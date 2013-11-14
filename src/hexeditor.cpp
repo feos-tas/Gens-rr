@@ -9,24 +9,28 @@
 #include "hexeditor.h"
 #include <windowsx.h>
 
+#define SELECTIONMIN min(Hex.AddressSelectedFirst, Hex.AddressSelectedLast)
+#define SELECTIONMAX max(Hex.AddressSelectedFirst, Hex.AddressSelectedLast)
+
 HWND HexEditorHWnd;
 HDC HexDC;
 SCROLLINFO HexSI;
-MousePos ClickArea = NO;
+MousePos ClickArea = NOWHERE;
 
-int
-	MouseX,
-	MouseY;
+bool
+	Selection = 0,
+	MouseButtonHeld = 0;
 
 unsigned int
-	ClientTopGap = 0,
-	RowCount = 16; // Offset consists of 16 bytes
+	ClientTopGap = 0,	// How much client area is shifted
+	RowCount = 16;		// Offset consists of 16 bytes
 
 void
 	HexDestroyDialog(),
 	HexUpdateCaption(),
 	HexUpdateScrollInfo(),
-	HexSelectAddress(int Address, bool ButtonDown);
+	HexSelectAddress(int Address, bool ButtonDown),
+	HexDestroySelection();
 
 int	
 	HexGetClickAddress(int x, int y);
@@ -67,7 +71,7 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 	RECT r, wr, cr;
 	PAINTSTRUCT ps;
 
-	switch(uMsg)
+	switch (uMsg)
 	{
 		case WM_CREATE:
 		{
@@ -86,6 +90,7 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 				(Hex.CellWidth + 1) * RowCount + Hex.GapHeaderX,
 				Hex.CellHeight * (Hex.OffsetVisibleTotal + 1) + 1
 			);
+
 			// Automatic adjust to account for menu, scrollbar and OS style
 			AdjustWindowRectEx(
 				&r,
@@ -93,6 +98,7 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 				(GetMenu(hDlg) > 0),
 				GetWindowLong(hDlg, GWL_EXSTYLE)
 			);
+
 			SetWindowPos(
 				hDlg, NULL,
 				Hex.DialogPosX,
@@ -101,10 +107,10 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 				r.bottom - r.top,
 				SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_SHOWWINDOW
 			);
+
 			GetClientRect(hDlg, &cr);
 			ClientTopGap = r.bottom - r.top - cr.bottom + 1;
 			Hex.AddressSelectedTotal = 0;
-
 			HexUpdateScrollInfo();
 			SetScrollInfo(hDlg, SB_VERT, &HexSI, TRUE);
 			return 0;
@@ -154,9 +160,32 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 
 		case WM_LBUTTONDOWN:
 		{
-			MouseX = GET_X_LPARAM(lParam);
-			MouseY = GET_Y_LPARAM(lParam);
+			int MouseX = GET_X_LPARAM(lParam);
+			int MouseY = GET_Y_LPARAM(lParam);
 			HexSelectAddress(HexGetClickAddress(MouseX, MouseY), 1);
+			MouseButtonHeld = 1;
+			HexUpdateCaption();
+			return 0;
+		}
+		break;
+
+		case WM_MOUSEMOVE:
+		{
+			int MouseX = GET_X_LPARAM(lParam);
+			int MouseY = GET_Y_LPARAM(lParam);
+			if (MouseButtonHeld)
+				HexSelectAddress(HexGetClickAddress(MouseX, MouseY), 0);
+			HexUpdateCaption();
+			return 0;
+		}
+		break;
+
+		case WM_LBUTTONUP:
+		{
+			int MouseX = GET_X_LPARAM(lParam);
+			int MouseY = GET_Y_LPARAM(lParam);
+			HexSelectAddress(HexGetClickAddress(MouseX, MouseY), 0);
+			MouseButtonHeld = 0;
 			HexUpdateCaption();
 			return 0;
 		}
@@ -167,7 +196,7 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 			HexUpdateScrollInfo();
 			GetScrollInfo(hDlg, SB_VERT, &HexSI);
 
-			switch(LOWORD(wParam))
+			switch (LOWORD(wParam))
 			{
 				case SB_ENDSCROLL:
 				case SB_TOP:
@@ -205,6 +234,7 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 		case WM_MOUSEWHEEL:
 		{
 			int WheelDelta = (short) HIWORD(wParam);
+
 			HexUpdateScrollInfo();
 			GetScrollInfo(hDlg, SB_VERT, &HexSI);
 
@@ -272,10 +302,11 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 
 		case WM_PAINT:
 		{
-			GetWindowRect(hDlg, &wr);
-			BeginPaint(hDlg, &ps);
 			static char buf[10];
 			unsigned int row = 0, line = 0;
+
+			GetWindowRect(hDlg, &wr);
+			BeginPaint(hDlg, &ps);
 
 			// TOP HEADER, static.
 			for (row = 0; row < RowCount; row++)
@@ -302,13 +333,21 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 			{
 				for (row = 0; row < RowCount; row++)
 				{
-					MoveToEx(HexDC, row * Hex.CellWidth + Hex.GapHeaderX, line * Hex.CellHeight + Hex.GapHeaderY, NULL);
+					unsigned int carriage = Hex.OffsetVisibleFirst + line * RowCount + row;
+
+					MoveToEx(
+						HexDC,
+						row * Hex.CellWidth + Hex.GapHeaderX,
+						line * Hex.CellHeight + Hex.GapHeaderY,
+						NULL
+					);
+
 					if (
-						(Hex.AddressSelectedTotal > 0) &&
-						((Hex.OffsetVisibleFirst + line * RowCount + row) >= Hex.AddressSelectedFirst) &&
-						((Hex.OffsetVisibleFirst + line * RowCount + row) <= Hex.AddressSelectedLast)
-					)
-					{	
+						(Selection) &&
+						(carriage >= SELECTIONMIN) &&
+						(carriage <= SELECTIONMAX) &&
+						((carriage - SELECTIONMIN) % Hex.SelectionStep == 0)
+					) {	
 						SetBkColor(HexDC, Hex.ColorFont);
 						SetTextColor(HexDC, Hex.ColorBG);
 					}
@@ -317,7 +356,7 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 						SetBkColor(HexDC, Hex.ColorBG);
 						SetTextColor(HexDC, Hex.ColorFont);
 					}					
-					sprintf(buf, "%02X", (int) Ram_68k[Hex.OffsetVisibleFirst + line * RowCount + row]);
+					sprintf(buf, "%02X", (int) Ram_68k[carriage]);
 					TextOut(HexDC, 0, 0, buf, strlen(buf));
 				}
 			}
@@ -447,29 +486,29 @@ int HexGetClickAddress(int x, int y)
 	x = x - Hex.GapHeaderX;
 	y = y - Hex.GapHeaderY;
 	
-	if (x < 0 && y >= 0)
-	{
-		ClickArea = TOPHEADER;
-		Address = Hex.OffsetVisibleFirst + y / Hex.CellHeight * RowCount;
-	}
-	else if (y < 0 && x >=0)
+	if ((x < 0) && (y >= 0))
 	{
 		ClickArea = LEFTHEADER;
+		Address = Hex.OffsetVisibleFirst + y / Hex.CellHeight * RowCount;
+	}
+	else if ((y < 0) && (x >=0))
+	{
+		ClickArea = TOPHEADER;
 		Address = x / Hex.CellWidth + Hex.OffsetVisibleFirst;
 	}
-	else if (y < 0 && x < 0)
+	else if ((y < 0) && (x < 0))
 	{
 		ClickArea = CORNER;
 		Address = Hex.OffsetVisibleFirst;
 	}
-	else if (y >= 0 && x >= 0)
+	else if ((y >= 0) && (x >= 0))
 	{
-		ClickArea = CELL;
+		ClickArea = CELLS;
 		Address = y / Hex.CellHeight * RowCount + x / Hex.CellWidth + Hex.OffsetVisibleFirst;
 	}
 	else
 	{
-		ClickArea = NO;
+		ClickArea = NOWHERE;
 		Address = -1;
 	}
 	return Address;
@@ -477,19 +516,9 @@ int HexGetClickAddress(int x, int y)
 
 void HexSelectAddress(int Address, bool ButtonDown)
 {
-/*
-	Selection is done as:
-	- cell (button down and up over 1 cell)
-		- bunch of cells (button down and up over different cells)
-	- line (button down and up over 1 offset)
-		- bunch of lines (button down and up over different offsets)
-	- row (button down and up over 1 address)
-		- bunch of rows (button down and up over different addresses)
-	- page (button down over top-left corner, button up switches to "bunch of cells" if mouse is moved)
-*/
 	switch (ClickArea)
 	{
-		case TOPHEADER:
+		case LEFTHEADER:
 		{
 			if (ButtonDown)
 			{
@@ -500,13 +529,14 @@ void HexSelectAddress(int Address, bool ButtonDown)
 			}
 			else
 			{
-				Hex.AddressSelectedLast  = Address;
-				Hex.AddressSelectedTotal = Address - Hex.AddressSelectedFirst;
+				Hex.AddressSelectedLast  = Address + RowCount - 1;
+				Hex.AddressSelectedTotal = SELECTIONMAX - SELECTIONMIN + 1;
 			}
+			Selection = 1;
 		}
 		break;
 
-		case LEFTHEADER:
+		case TOPHEADER:
 		{
 			if (ButtonDown)
 			{
@@ -517,30 +547,14 @@ void HexSelectAddress(int Address, bool ButtonDown)
 			}
 			else
 			{
-				Hex.AddressSelectedLast  = Address;
-				Hex.AddressSelectedTotal = Address - Hex.AddressSelectedFirst;
+				Hex.AddressSelectedLast  = Address + (Hex.OffsetVisibleTotal - 1) * RowCount;
+				Hex.AddressSelectedTotal = SELECTIONMAX - SELECTIONMIN + 1;
 			}
+			Selection = 1;
 		}
 		break;
 
-		case CORNER:
-		{
-			if (ButtonDown)
-			{
-				Hex.AddressSelectedFirst = Hex.OffsetVisibleFirst;
-				Hex.AddressSelectedLast  = Hex.OffsetVisibleFirst + Hex.OffsetVisibleTotal * RowCount - 1;
-				Hex.AddressSelectedTotal = Hex.OffsetVisibleTotal * RowCount;
-				Hex.SelectionStep = 1;
-			}
-			else
-			{
-				Hex.AddressSelectedLast  = Address;
-				Hex.AddressSelectedTotal = Address - Hex.AddressSelectedFirst;
-			}
-		}
-		break;
-
-		case CELL:
+		case CELLS:
 		{
 			if (ButtonDown)
 			{
@@ -552,20 +566,45 @@ void HexSelectAddress(int Address, bool ButtonDown)
 			else
 			{
 				Hex.AddressSelectedLast  = Address;
-				Hex.AddressSelectedTotal = Address - Hex.AddressSelectedFirst;
+				Hex.AddressSelectedTotal = SELECTIONMAX - SELECTIONMIN + 1;
 			}
+			Selection = 1;
 		}
 		break;
 
-		case NO:
+		case CORNER:
+		{
+			Hex.AddressSelectedFirst = Hex.OffsetVisibleFirst;
+			Hex.AddressSelectedLast  = Hex.OffsetVisibleFirst + Hex.OffsetVisibleTotal * RowCount - 1;
+			Hex.AddressSelectedTotal = Hex.OffsetVisibleTotal * RowCount;
+			Hex.SelectionStep = 1;
+			Selection = 1;
+		}
+		break;
+
+		case NOWHERE:
+		{
+			Selection = 0;
+		}
 		break;
 	}
 	HexUpdateDialog();
 }
 
+void HexDestroySelection()
+{
+	Selection = 0;
+	ClickArea = NOWHERE;
+	Hex.AddressSelectedFirst = 0;
+	Hex.AddressSelectedTotal = 0;
+	Hex.AddressSelectedLast = 0;
+	Hex.SelectionStep = 0;
+}
+
 void HexDestroyDialog()
 {
-	DialogsOpen--;	
+	DialogsOpen--;
+	HexDestroySelection();
 	ReleaseDC(HexEditorHWnd, HexDC);
 	DestroyWindow(HexEditorHWnd);
 	UnregisterClass("HEXEDITOR", ghInstance);

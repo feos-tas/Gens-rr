@@ -16,11 +16,11 @@ typedef struct {
 } HexParameters;
 
 enum MousePos {
+	NOWHERE,
 	LEFTHEADER,
 	TOPHEADER,
 	CORNER,
-	CELL,
-	NO
+	CELLS
 };
 
 extern HWND HexEditorHWnd;

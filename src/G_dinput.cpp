@@ -20,7 +20,7 @@ char Phrase[1024];
 int Nb_Joys = 0;
 static IDirectInputDevice2 *Joy_ID[MAX_JOYS] = {NULL};
 static DIJOYSTATE Joy_State[MAX_JOYS] = {{0}};
-long MouseX, MouseY;
+// long MouseX, MouseY;
 unsigned char Keys[256];
 unsigned char Kaillera_Keys[16];
 int Cur_Player; //Upth-Add - For the new key-redefinition dialogs
