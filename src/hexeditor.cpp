@@ -322,7 +322,7 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 						SetBkColor(HexDC, Hex.ColorBG);
 						SetTextColor(HexDC, Hex.ColorFont);
 					}
-					sprintf(buf, "%02X", Ram_68k[carriage]);
+					sprintf(buf, "%02X", Ram_68k[carriage + swap]);
 					TextOut(HexDC, 0, 0, buf, strlen(buf));
 
 					// Print chars on the right
