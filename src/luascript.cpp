@@ -3471,6 +3471,24 @@ DEFINE_LUA_FUNCTION(gens_loadrom, "filename")
     return 0;
 }
 
+DEFINE_LUA_FUNCTION(gens_hardreset, "")
+{
+	if(!(Game))
+		return 0;
+	
+	if (Genesis_Started)
+		Reset_Genesis();
+	else if (_32X_Started)
+		Reset_32X();
+	else if (SegaCD_Started)
+		Reset_SegaCD();
+
+	FrameCount=0;
+	LagCount = 0;
+	LagCountPersistent = 0;
+	return 0;
+}
+
 DEFINE_LUA_FUNCTION(gens_getframecount, "")
 {
 	lua_pushinteger(L, FrameCount);
@@ -3974,6 +3992,7 @@ static const struct luaL_reg genslib [] =
 	{"print", print}, // sure, why not
 	{"openscript", gens_openscript},
 	{"loadrom", gens_loadrom},
+	{"hardreset", gens_hardreset},
 	// alternative names
 	{"openrom", gens_loadrom},
 	{NULL, NULL}
