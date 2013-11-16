@@ -5,22 +5,29 @@
 #include "mem_sh2.h"
 #include "G_main.h"
 #include "G_ddraw.h"
+#include "G_dsound.h"
 #include "ram_search.h"
 #include "hexeditor.h"
 #include <windowsx.h>
 
-#define SELECTIONSTART min(Hex.AddressSelectedFirst, Hex.AddressSelectedLast)
-#define SELECTIONEND max(Hex.AddressSelectedFirst, Hex.AddressSelectedLast)
+#define CLIENT_WIDTH Hex.CellWidth * RowCount + Hex.GapHeaderX + RowCount * Hex.FontWidth + 25
+#define CLIENT_HEIGHT Hex.CellHeight * (Hex.OffsetVisibleTotal + 1) + 1
+#define SELECTION_START min(Hex.AddressSelectedFirst, Hex.AddressSelectedLast)
+#define SELECTION_END max(Hex.AddressSelectedFirst, Hex.AddressSelectedLast)
 
 HWND HexEditorHWnd;
 HDC HexDC;
 SCROLLINFO HexSI;
 MousePos ClickArea = NO;
 
-bool MouseButtonHeld = 0;
+bool
+	MouseButtonHeld = 0,
+	SwapBytes = 1,
+	HexStarted = 0;
 
 unsigned int
 	ClientTopGap = 0,	// How much client area is shifted
+	ClientXGap = 0,
 	RowCount = 16;		// Offset consists of 16 bytes
 
 HexParameters Hex =
@@ -104,7 +111,7 @@ int HexGetClickAddress(int x, int y)
 
 	x = x - Hex.GapHeaderX;
 	y = y - Hex.GapHeaderY;
-	
+
 	if ((x < 0) && (y >= 0))
 	{
 		ClickArea = LEFTHEADER;
@@ -143,7 +150,7 @@ void HexSelectAddress(int Address, bool ButtonDown)
 			else
 			{
 				Hex.AddressSelectedLast  = Address;
-				Hex.AddressSelectedTotal = SELECTIONEND - SELECTIONSTART + 1;
+				Hex.AddressSelectedTotal = SELECTION_END - SELECTION_START + 1;
 			}
 		}
 		break;
@@ -159,7 +166,7 @@ void HexSelectAddress(int Address, bool ButtonDown)
 			else
 			{
 				Hex.AddressSelectedLast  = Address + RowCount - 1;
-				Hex.AddressSelectedTotal = SELECTIONEND - SELECTIONSTART + 1;
+				Hex.AddressSelectedTotal = SELECTION_END - SELECTION_START + 1;
 			}
 		}
 		break;
@@ -178,7 +185,7 @@ void HexSelectAddress(int Address, bool ButtonDown)
 	if (Hex.AddressSelectedLast > _68K_RAM_SIZE - 1)
 	{
 		Hex.AddressSelectedLast = _68K_RAM_SIZE - 1;
-		Hex.AddressSelectedTotal = SELECTIONEND - SELECTIONSTART + 1;
+		Hex.AddressSelectedTotal = SELECTION_END - SELECTION_START + 1;
 	}
 	HexUpdateDialog();
 }
@@ -214,19 +221,16 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 			HexDC = GetDC(hDlg);
 			SelectObject(HexDC, HexFont);
 			SetTextAlign(HexDC, TA_UPDATECP | TA_TOP | TA_LEFT);
-
 			if (Full_Screen)
 			{
 				while (ShowCursor(false) >= 0);
 				while (ShowCursor(true) < 0);
-			}
-			
+			}			
 			SetRect(
 				&r, 0, 0,
-				(Hex.CellWidth + 1) * RowCount + Hex.GapHeaderX,
-				Hex.CellHeight * (Hex.OffsetVisibleTotal + 1) + 1
+				CLIENT_WIDTH,
+				CLIENT_HEIGHT
 			);
-
 			// Automatic adjust to account for menu, scrollbar and OS style
 			AdjustWindowRectEx(
 				&r,
@@ -234,7 +238,6 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 				(GetMenu(hDlg) > 0),
 				GetWindowLong(hDlg, GWL_EXSTYLE)
 			);
-
 			SetWindowPos(
 				hDlg, NULL,
 				Hex.DialogPosX,
@@ -243,12 +246,13 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 				r.bottom - r.top,
 				SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_SHOWWINDOW
 			);
-
 			GetClientRect(hDlg, &cr);
 			ClientTopGap = r.bottom - r.top - cr.bottom + 1;
+			ClientXGap = r.right - r.left - cr.right + 1;
 			Hex.AddressSelectedTotal = 0;
 			HexUpdateScrollInfo();
 			SetScrollInfo(hDlg, SB_VERT, &HexSI, TRUE);
+			HexStarted = 1;
 			return 0;
 		}
 		break;
@@ -257,10 +261,8 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 		{
 			static char buf[10];
 			unsigned int row = 0, line = 0;
-
 			GetWindowRect(hDlg, &wr);
 			BeginPaint(hDlg, &ps);
-
 			// TOP HEADER, static.
 			for (row = 0; row < RowCount; row++)
 			{
@@ -286,7 +288,7 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 				);
 				SetBkColor(HexDC, Hex.ColorBG);
 				SetTextColor(HexDC, Hex.ColorFont);
-				sprintf(buf, "%06X:", Hex.OffsetVisibleFirst + line * RowCount + Hex.MemoryRegion);
+				sprintf(buf, "%06X", Hex.OffsetVisibleFirst + line * RowCount + Hex.MemoryRegion);
 				TextOut(HexDC, 0, 0, buf, strlen(buf));
 			}
 			// RAM, dynamic.
@@ -295,13 +297,42 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 				for (row = 0; row < RowCount; row++)
 				{
 					unsigned int carriage = Hex.OffsetVisibleFirst + line * RowCount + row;
+					int swap = 0;
+					if (SwapBytes)
+					{
+						if ((row % 2) > 0)
+							swap = -1;
+						else
+							swap = 1;
+					}
+					// Print numbers in main area
 					MoveToEx(
 						HexDC,
 						row * Hex.CellWidth + Hex.GapHeaderX,
 						line * Hex.CellHeight + Hex.GapHeaderY,
 						NULL
 					);
-					if ((Hex.AddressSelectedTotal) && (carriage >= SELECTIONSTART) && (carriage <= SELECTIONEND))
+					if ((Hex.AddressSelectedTotal) && (carriage >= SELECTION_START) && (carriage <= SELECTION_END))
+					{	
+						SetBkColor(HexDC, Hex.ColorFont);
+						SetTextColor(HexDC, Hex.ColorBG);
+					}
+					else
+					{
+						SetBkColor(HexDC, Hex.ColorBG);
+						SetTextColor(HexDC, Hex.ColorFont);
+					}
+					sprintf(buf, "%02X", Ram_68k[carriage]);
+					TextOut(HexDC, 0, 0, buf, strlen(buf));
+
+					// Print chars on the right
+					MoveToEx(
+						HexDC,
+						Hex.CellWidth * RowCount + row * Hex.FontWidth + Hex.GapHeaderX,
+						line * Hex.CellHeight + Hex.GapHeaderY,
+						NULL
+					);
+					if ((Hex.AddressSelectedTotal) && (carriage >= SELECTION_START) && (carriage <= SELECTION_END))
 					{	
 						SetBkColor(HexDC, Hex.ColorFont);
 						SetTextColor(HexDC, Hex.ColorBG);
@@ -311,8 +342,13 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 						SetBkColor(HexDC, Hex.ColorBG);
 						SetTextColor(HexDC, Hex.ColorFont);
 					}					
-					sprintf(buf, "%02X", Ram_68k[carriage]);
-					TextOut(HexDC, 0, 0, buf, strlen(buf));
+					UINT8 check = Ram_68k[carriage + swap];
+					if((check >= 32) && (check <= 127))
+						buf[0] = (char) check;
+					else
+						buf[0] = '.';
+//					sprintf(buf, "%02X", Ram_68k[carriage]);
+					TextOut(HexDC, 0, 0, buf, 1);
 				}
 			}
 			EndPaint(hDlg, &ps);
@@ -363,6 +399,7 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 
 		case WM_LBUTTONDOWN:
 		{
+			SetCapture(hDlg); // watch mouse actions outside the client area
 			int MouseX = GET_X_LPARAM(lParam);
 			int MouseY = GET_Y_LPARAM(lParam);
 			HexSelectAddress(HexGetClickAddress(MouseX, MouseY), 1);
@@ -390,15 +427,16 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 			HexSelectAddress(HexGetClickAddress(MouseX, MouseY), 0);
 			MouseButtonHeld = 0;
 			HexUpdateCaption();
+			ReleaseCapture(); // stop wathcing mouse
 			return 0;
 		}
 		break;
 
 		case WM_VSCROLL:
 		{
+			Clear_Sound_Buffer();
 			HexUpdateScrollInfo();
 			GetScrollInfo(hDlg, SB_VERT, &HexSI);
-
 			switch (LOWORD(wParam))
 			{
 				case SB_ENDSCROLL:
@@ -425,8 +463,7 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 			if (HexSI.nPos < HexSI.nMin)
 				HexSI.nPos = HexSI.nMin;
 			if ((HexSI.nPos + (int) HexSI.nPage) > HexSI.nMax)
-				HexSI.nPos = HexSI.nMax - HexSI.nPage;
-			
+				HexSI.nPos = HexSI.nMax - HexSI.nPage;			
 			Hex.OffsetVisibleFirst = HexSI.nPos * RowCount;
 			SetScrollInfo(hDlg, SB_VERT, &HexSI, TRUE);
 			HexUpdateDialog();
@@ -437,10 +474,8 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 		case WM_MOUSEWHEEL:
 		{
 			int WheelDelta = (short) HIWORD(wParam);
-
 			HexUpdateScrollInfo();
 			GetScrollInfo(hDlg, SB_VERT, &HexSI);
-
 			if (WheelDelta < 0)
 				HexSI.nPos += HexSI.nPage;
 			if (WheelDelta > 0)
@@ -449,7 +484,6 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 				HexSI.nPos = HexSI.nMin;
 			if ((HexSI.nPos + (int) HexSI.nPage) > HexSI.nMax)
 				HexSI.nPos = HexSI.nMax - HexSI.nPage;
-
 			Hex.OffsetVisibleFirst = HexSI.nPos * RowCount;
 			SetScrollInfo(hDlg, SB_VERT, &HexSI, TRUE);
 			HexUpdateDialog();
@@ -459,12 +493,11 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 
 		case WM_SIZING:
 		{
-			RECT *r = (RECT *) lParam;		
-			
+			Clear_Sound_Buffer();
+			RECT *r = (RECT *) lParam;			
 			HexUpdateScrollInfo();
 			GetScrollInfo(hDlg, SB_VERT, &HexSI);
-
-			if (wParam == WMSZ_BOTTOM) // just in case...
+			if ((wParam == WMSZ_BOTTOM) || (wParam == WMSZ_BOTTOMRIGHT))
 			{
 				int height = r->bottom - r->top;
 				// Manual adjust to account for cell parameters
@@ -486,11 +519,11 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 		{
 			LRESULT lRes = DefWindowProc(hDlg, uMsg, wParam, lParam);
 			if (
-				lRes == HTBOTTOMLEFT || lRes == HTBOTTOMRIGHT ||
+				lRes == HTBOTTOMLEFT || 
 				lRes == HTTOPLEFT || lRes == HTTOPRIGHT || lRes == HTTOP ||
-				lRes == HTLEFT || lRes == HTRIGHT || lRes == HTSIZE
+				lRes == HTLEFT || lRes == HTSIZE
 			)
-				lRes = HTBORDER; // forbid resizing for all but HTBOTTOM
+				lRes = HTBORDER;
 			return lRes;
 		}
 		break;
@@ -500,6 +533,11 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 			MINMAXINFO *pInfo = (MINMAXINFO *) lParam;
 			// Manual adjust to account for cell parameters
 			pInfo->ptMinTrackSize.y = Hex.CellHeight * 2 + ClientTopGap;
+			if (HexStarted)
+			{
+				pInfo->ptMaxTrackSize.x = Hex.CellWidth*RowCount + Hex.GapHeaderX + RowCount*Hex.FontWidth + 33;
+				pInfo->ptMinTrackSize.x = (Hex.CellWidth+1)*RowCount + Hex.GapHeaderX + 8;
+			}
 			return 0;
 		}
 
