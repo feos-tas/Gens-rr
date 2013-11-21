@@ -8,7 +8,6 @@ typedef struct {
 		GapFontX, GapFontY, GapHeaderX, GapHeaderY,
 		CellHeight, CellWidth,
 		DialogPosX, DialogPosY,
-		DialogSizeX, DialogSizeY,
 		OffsetVisibleFirst, OffsetVisibleTotal,
 		AddressSelectedFirst, AddressSelectedTotal, AddressSelectedLast,
 		MemoryRegion;
@@ -19,8 +18,7 @@ typedef struct {
 enum MousePos {
 	NO,
 	CELL,
-	TEXT
-};
+	TEXT };
 
 extern HWND HexEditorHWnd;
 extern HexParameters Hex;
