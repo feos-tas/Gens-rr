@@ -112,52 +112,61 @@ void HexUpdateScrollInfo()
 
 int HexGetMouseAddress(LPARAM lParam)
 {
-	int Address = -1;
+	int Address;
 	POINT Mouse;
 	POINTSTOPOINT(Mouse, MAKEPOINTS(lParam));
 	if (!MouseButtonHeld) {
 		if (PtInRect(&CellArea, Mouse)) {
 			MouseArea = CELL;
 			Address = (Mouse.y - CellArea.top) / Hex.CellHeight * RowCount +
-				(Mouse.x - CellArea.left) / Hex.CellWidth + Hex.OffsetVisibleFirst; }
-		else if (PtInRect(&TextArea, Mouse)) {
+				(Mouse.x - CellArea.left) / Hex.CellWidth + Hex.OffsetVisibleFirst;
+		} else if (PtInRect(&TextArea, Mouse)) {
 			MouseArea = TEXT;
 			Address = (Mouse.y - TextArea.top) / Hex.CellHeight * RowCount +
-				(Mouse.x - TextArea.left) / Hex.FontWidth + Hex.OffsetVisibleFirst; } }
-	else {
+				(Mouse.x - TextArea.left) / Hex.FontWidth + Hex.OffsetVisibleFirst;
+		} else
+			Address = -1;
+	} else if ((MouseButtonHeld) && (Hex.AddressSelectedTotal > 0)) {
 		if (MouseArea == CELL) { // Adjust for PtInRect()
 			if (Mouse.x <  CellArea.left  ) Mouse.x = CellArea.left;
 			if (Mouse.x >= CellArea.right ) Mouse.x = CellArea.right  - 1;
 			Address = (Mouse.y - CellArea.top) / Hex.CellHeight * RowCount +
-				(Mouse.x - CellArea.left) / Hex.CellWidth + Hex.OffsetVisibleFirst; }
-		else if (MouseArea == TEXT) { // Adjust for PtInRect()
+				(Mouse.x - CellArea.left) / Hex.CellWidth + Hex.OffsetVisibleFirst;
+		} else if (MouseArea == TEXT) { // Adjust for PtInRect()
 			if (Mouse.x <  TextArea.left  ) Mouse.x = TextArea.left;
 			if (Mouse.x >= TextArea.right ) Mouse.x = TextArea.right  - 1;
 			Address = (Mouse.y - TextArea.top) / Hex.CellHeight * RowCount +
-				(Mouse.x - TextArea.left) / Hex.FontWidth + Hex.OffsetVisibleFirst; } }
+				(Mouse.x - TextArea.left) / Hex.FontWidth + Hex.OffsetVisibleFirst;
+		}
+	} else
+		Address = -1;
 	return Address;
 }
 
 void HexSelectAddress(int Address, bool ButtonDown)
 {
-	if (Address >=0) {
+	if (Address == -1)
+		return;
+	else {
 		if (ButtonDown) {
 			Hex.AddressSelectedFirst = Address;
 			Hex.AddressSelectedLast  = Address;
-			Hex.AddressSelectedTotal = 1; }
-		else {
+			Hex.AddressSelectedTotal = 1;
+		} else {
 			Hex.AddressSelectedLast  = Address;
-			Hex.AddressSelectedTotal = SELECTION_END - SELECTION_START + 1; 	} }
-
-	if (Hex.AddressSelectedLast > _68K_RAM_SIZE - 1) {
-		Hex.AddressSelectedLast = _68K_RAM_SIZE - 1;
-		Hex.AddressSelectedTotal = SELECTION_END - SELECTION_START + 1; }
-	if (SELECTION_START < Hex.OffsetVisibleFirst)
-		Hex.OffsetVisibleFirst = SELECTION_START / RowCount * RowCount;
-	if (SELECTION_END > LAST_ADDRESS)
-		Hex.OffsetVisibleFirst = (SELECTION_END / RowCount - Hex.OffsetVisibleTotal + 1) * RowCount;
-	HexUpdateScrollInfo();
-	HexUpdateDialog();
+			Hex.AddressSelectedTotal = SELECTION_END - SELECTION_START + 1;
+		}
+		if (Hex.AddressSelectedLast > _68K_RAM_SIZE - 1) {
+			Hex.AddressSelectedLast = _68K_RAM_SIZE - 1;
+			Hex.AddressSelectedTotal = SELECTION_END - SELECTION_START + 1;
+		}
+		if (SELECTION_START < Hex.OffsetVisibleFirst)
+			Hex.OffsetVisibleFirst = SELECTION_START / RowCount * RowCount;
+		if (SELECTION_END > LAST_ADDRESS)
+			Hex.OffsetVisibleFirst = (SELECTION_END / RowCount - Hex.OffsetVisibleTotal + 1) * RowCount;
+		HexUpdateScrollInfo();
+		HexUpdateDialog();
+	}
 }
 
 void HexDestroySelection()
@@ -191,7 +200,8 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 		SetTextAlign(HexDC, TA_UPDATECP | TA_TOP | TA_LEFT);
 		if (Full_Screen) {
 			while (ShowCursor(false) >= 0);
-			while (ShowCursor(true) < 0); }
+			while (ShowCursor(true) < 0);
+		}
 		SetRect(&r, 0, 0, CLIENT_WIDTH, CLIENT_HEIGHT);
 		// Automatic adjust to account for menu and OS style, manual for scrollbar
 		int ScrollbarWidth = GetSystemMetrics(SM_CXVSCROLL);
@@ -207,7 +217,8 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 		HexUpdateScrollInfo();
 		SetScrollInfo(hDlg, SB_VERT, &HexSI, TRUE);
 		HexStarted = 1;
-		return 0; }
+		return 0;
+		}
 	break;
 
 	case WM_PAINT: {
@@ -220,13 +231,15 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 			MoveToEx(HexDC, row * Hex.CellWidth + CellArea.left, 0, NULL);
 			HexSetColors(HexDC, 0);
 			sprintf(buf, "%2X", row);
-			TextOut(HexDC, 0, 0, buf, strlen(buf)); }
+			TextOut(HexDC, 0, 0, buf, strlen(buf));
+		}
 		// LEFT HEADER, semi-dynamic.
 		for (line = 0; line < Hex.OffsetVisibleTotal; line++) {
 			MoveToEx(HexDC, 0, line * Hex.CellHeight + CellArea.top, NULL);
 			HexSetColors(HexDC, 0);
 			sprintf(buf, "%06X", Hex.OffsetVisibleFirst + line * RowCount + Hex.MemoryRegion);
-			TextOut(HexDC, 0, 0, buf, strlen(buf)); }
+			TextOut(HexDC, 0, 0, buf, strlen(buf));
+		}
 		// RAM, dynamic.
 		for (line = 0; line < Hex.OffsetVisibleTotal; line++) {
 			for (row = 0; row < RowCount; row++) {
@@ -234,7 +247,8 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 				int swap = 0;
 				if (SwapBytes) {
 					if ((row % 2) > 0) swap = -1;
-					else swap = 1; }
+					else swap = 1;
+				}
 				// Print numbers in main area
 				MoveToEx(HexDC, row * Hex.CellWidth + CellArea.left,
 					line * Hex.CellHeight + CellArea.top, NULL);
@@ -257,9 +271,13 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 						buf[0] = (char) check;
 					else
 						buf[0] = '.';
-					TextOut(HexDC, 0, 0, buf, 1); } } }
+					TextOut(HexDC, 0, 0, buf, 1);
+				}
+			}
+		}
 		EndPaint(hDlg, &ps);
-		return 0; }
+		return 0;
+	}
 	break;
 
 	case WM_COMMAND: {
@@ -285,7 +303,8 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 			if ((strnicmp(fname,"ff",2)==0) && sscanf(fname+2,"%x",&CurPos)) {
 				SetScrollPos(GetDlgItem(hDlg,IDC_SCROLLBAR1),SB_CTL,(CurPos>>4),TRUE);
 				Update_RAM_Dump(); } }
-		break; } */ }
+		break; } */ 
+	}
 	break;
 
 	case WM_LBUTTONDOWN: {
@@ -293,14 +312,16 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 		HexSelectAddress(HexGetMouseAddress(lParam), 1);
 		MouseButtonHeld = 1;
 		HexUpdateCaption();
-		return 0; }
+		return 0;
+	}
 	break;
 
 	case WM_MOUSEMOVE: {
 		if (MouseButtonHeld)
 			HexSelectAddress(HexGetMouseAddress(lParam), 0);
 		HexUpdateCaption();
-		return 0; }
+		return 0;
+	}
 	break;
 
 	case WM_LBUTTONUP: {
@@ -308,7 +329,8 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 		MouseButtonHeld = 0;
 		HexUpdateCaption();
 		ReleaseCapture(); // Stop wathcing mouse
-		return 0; }
+		return 0;
+	}
 	break;
 
 	case WM_VSCROLL: {
@@ -336,32 +358,28 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 			case SB_THUMBTRACK:
 				HexSI.nPos = HexSI.nTrackPos;
 				break; }
-		if (HexSI.nPos < HexSI.nMin)
-			HexSI.nPos = HexSI.nMin;
-		if ((HexSI.nPos + (int) HexSI.nPage) > HexSI.nMax)
-			HexSI.nPos = HexSI.nMax - HexSI.nPage;			
+		if (HexSI.nPos < HexSI.nMin) HexSI.nPos = HexSI.nMin;
+		if ((HexSI.nPos + (int)HexSI.nPage) > HexSI.nMax) HexSI.nPos = HexSI.nMax - HexSI.nPage;			
 		Hex.OffsetVisibleFirst = HexSI.nPos * RowCount;
 		SetScrollInfo(hDlg, SB_VERT, &HexSI, TRUE);
 		HexUpdateDialog();
-		return 0; }
+		return 0;
+	}
 	break;
 
 	case WM_MOUSEWHEEL: {
-		int WheelDelta = (short) HIWORD(wParam);
+		int WheelDelta = (short)HIWORD(wParam);
 		HexUpdateScrollInfo();
 		GetScrollInfo(hDlg, SB_VERT, &HexSI);
-		if (WheelDelta < 0)
-			HexSI.nPos += HexSI.nPage;
-		if (WheelDelta > 0)
-			HexSI.nPos -= HexSI.nPage;
-		if (HexSI.nPos < HexSI.nMin)
-			HexSI.nPos = HexSI.nMin;
-		if ((HexSI.nPos + (int) HexSI.nPage) > HexSI.nMax)
-			HexSI.nPos = HexSI.nMax - HexSI.nPage;
+		if (WheelDelta < 0) HexSI.nPos += HexSI.nPage;
+		if (WheelDelta > 0) HexSI.nPos -= HexSI.nPage;
+		if (HexSI.nPos < HexSI.nMin) HexSI.nPos = HexSI.nMin;
+		if ((HexSI.nPos + (int)HexSI.nPage) > HexSI.nMax) HexSI.nPos = HexSI.nMax - HexSI.nPage;
 		Hex.OffsetVisibleFirst = HexSI.nPos * RowCount;
 		SetScrollInfo(hDlg, SB_VERT, &HexSI, TRUE);
 		HexUpdateDialog();
-		return 0; }
+		return 0;
+	}
 	break;
 
 	case WM_SIZING: {
