@@ -2,7 +2,7 @@
 #define HEXEDITOR_H
 
 typedef struct {
-	bool FontBold;
+	bool TextView, FontBold;
 	unsigned int
 		FontHeight, FontWidth, FontWeight,
 		GapFontX, GapFontY, GapHeaderX, GapHeaderY,
