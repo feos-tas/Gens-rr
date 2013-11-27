@@ -3,6 +3,7 @@
 #include "mem_m68k.h"
 #include "mem_s68k.h"
 #include "mem_sh2.h"
+#include "mem_z80.h"
 #include "G_main.h"
 #include "G_ddraw.h"
 #include "G_dsound.h"
@@ -18,12 +19,23 @@ MousePos MouseArea = NO;
 bool
 	MouseButtonHeld = 0,
 	SwapBytes = 0,
+	DrawLines = 1,
 	HexStarted = 0;
 
 unsigned int
 	ClientTopGap = 0,	// How much client area is shifted
 	ClientXGap = 0,		// Total diff between client and dialog widths
 	RowCount = 16;		// Offset consists of 16 bytes
+
+HexRegion s_hexRegions[] = {
+	{"ROM",			0,								0,			0,					16},
+	{"RAM CD PRG",	(unsigned char *)Ram_Prg,		0x020000,	SEGACD_RAM_PRG_SIZE,16},
+	{"RAM CD 1M",	(unsigned char *)Ram_Word_1M,	0x200000,	SEGACD_1M_RAM_SIZE,	16},
+	{"RAM CD 2M",	(unsigned char *)Ram_Word_2M,	0x200000,	SEGACD_2M_RAM_SIZE,	16},
+	{"RAM Z80",		(unsigned char *)Ram_Z80,		0xA00000,	Z80_RAM_SIZE,		16},
+	{"RAM M68K",	(unsigned char *)Ram_68k,		0xFF0000,	_68K_RAM_SIZE,		16},
+	{"RAM 32X",		(unsigned char *)_32X_Ram,		0x06000000,	_32X_RAM_SIZE,		16},
+};
 
 HexParameters Hex = {
 	1,												// text area visible
@@ -268,6 +280,17 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 						TextOut(HexDC, 0, 0, buf, 1);
 					}
 				}
+			}
+			// Some lines
+			if (DrawLines) {
+				MoveToEx(HexDC, CellArea.left - Hex.FontWidth / 2 - 1, 0, NULL);
+				LineTo(HexDC, CellArea.left - Hex.FontWidth / 2 - 1, CLIENT_HEIGHT);
+				MoveToEx(HexDC, CellArea.left + Hex.CellWidth * 8 - Hex.FontWidth / 2 - 1, 0, NULL);
+				LineTo(HexDC, CellArea.left + Hex.CellWidth * 8 - Hex.FontWidth / 2 - 1, CLIENT_HEIGHT);
+				MoveToEx(HexDC, TextArea.left - Hex.FontWidth / 2 - 1, 0, NULL);
+				LineTo(HexDC, TextArea.left - Hex.FontWidth / 2 - 1, CLIENT_HEIGHT);
+				MoveToEx(HexDC, 0, CellArea.top, NULL);
+				LineTo(HexDC, CLIENT_WIDTH, CellArea.top);
 			}
 			EndPaint(hDlg, &ps);
 			return 0;

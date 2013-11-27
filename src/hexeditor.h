@@ -15,10 +15,20 @@ typedef struct {
 		ColorFont, ColorBG, ColorSelection;
 } HexParameters;
 
+typedef struct {
+	char Name[12];
+	unsigned char* Array;
+	unsigned int
+		Offset,
+		Size,
+		RowCount;
+} HexRegion;
+
 enum MousePos {
 	NO,
 	CELL,
-	TEXT };
+	TEXT
+};
 
 extern HWND HexEditorHWnd;
 extern HexParameters Hex;
