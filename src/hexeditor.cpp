@@ -12,6 +12,7 @@
 #include <windowsx.h>
 
 HWND HexEditorHWnd;
+HMENU HexEditorMenu;
 HDC HexDC;
 SCROLLINFO HexSI;
 MousePos MouseArea = NO;
@@ -19,7 +20,7 @@ MousePos MouseArea = NO;
 bool
 	MouseButtonHeld = 0,
 	SwapBytes = 0,
-	DrawLines = 1,
+	DrawLines = 0,
 	HexStarted = 0;
 
 unsigned int
@@ -27,7 +28,7 @@ unsigned int
 	ClientXGap = 0,		// Total diff between client and dialog widths
 	RowCount = 16;		// Offset consists of 16 bytes
 
-HexRegion s_hexRegions[] = {
+HexRegion HexRegions[] = {
 	{"ROM",			0,								0,			0,					16},
 	{"RAM CD PRG",	(unsigned char *)Ram_Prg,		0x020000,	SEGACD_RAM_PRG_SIZE,16},
 	{"RAM CD 1M",	(unsigned char *)Ram_Word_1M,	0x200000,	SEGACD_1M_RAM_SIZE,	16},
@@ -201,6 +202,7 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 	case WM_CREATE:
 		{
 			HexDC = GetDC(hDlg);
+			HexEditorMenu = GetMenu(hDlg);
 			SelectObject(HexDC, HexFont);
 			SetTextAlign(HexDC, TA_UPDATECP | TA_TOP | TA_LEFT);
 			if (Full_Screen) {
@@ -297,10 +299,42 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 		}
 		break;
 
+	case WM_INITMENU:
+		CheckMenuItem(HexEditorMenu, IDC_C_HEX_SWAP, SwapBytes ? MF_CHECKED : MF_UNCHECKED);
+		CheckMenuItem(HexEditorMenu, IDC_C_HEX_LINES, DrawLines ? MF_CHECKED : MF_UNCHECKED);
+		CheckMenuItem(HexEditorMenu, IDC_C_HEX_TEXT, Hex.TextView ? MF_CHECKED : MF_UNCHECKED);
+		break;
+
+	case WM_MENUSELECT:
+ 	case WM_ENTERSIZEMOVE:
+		Clear_Sound_Buffer();
+		break;
+
 	case WM_COMMAND:
 		{
-/*			switch(wParam) {
-			case IDC_SAVE:
+			switch(wParam) {
+			case IDC_C_HEX_SWAP:
+				SwapBytes = !SwapBytes;
+				CheckMenuItem(HexEditorMenu, IDC_C_HEX_SWAP, SwapBytes ? MF_CHECKED : MF_UNCHECKED);
+				HexUpdateDialog();
+				break;
+
+			case IDC_C_HEX_LINES:
+				DrawLines = !DrawLines;
+				CheckMenuItem(HexEditorMenu, IDC_C_HEX_LINES, DrawLines ? MF_CHECKED : MF_UNCHECKED);
+				HexUpdateDialog();
+				break;
+
+			case IDC_C_HEX_TEXT:
+				Hex.TextView = !Hex.TextView;
+				CheckMenuItem(HexEditorMenu, IDC_C_HEX_TEXT, Hex.TextView ? MF_CHECKED : MF_UNCHECKED);
+				GetWindowRect(hDlg, &wr);
+				SetWindowPos(hDlg, NULL, wr.left, wr.top, CLIENT_WIDTH + ClientXGap, wr.bottom - wr.top,
+					SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_SHOWWINDOW);
+				HexUpdateDialog();
+				break;
+
+/*			case IDC_SAVE:
 				{
 					char fname[2048];
 					strcpy(fname,"dump.bin");
@@ -328,8 +362,8 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 						Update_RAM_Dump();
 					}
 				}
-				break;
-			} */ 
+				break; */ 
+			}
 		}
 		break;
 
@@ -497,6 +531,7 @@ void HexCreateDialog()
 		wndclass.hIconSm       = LoadIcon(ghInstance, MAKEINTRESOURCE(IDI_GENS));
 		wndclass.hCursor       = LoadCursor (NULL, IDC_ARROW);
 		wndclass.hbrBackground = (HBRUSH) GetStockObject(WHITE_BRUSH);
+		wndclass.lpszMenuName  = "HEXEDITOR_MENU";
 		wndclass.lpszClassName = "HEXEDITOR";
 		if(!RegisterClassEx(&wndclass)) {
 			Put_Info("Error Registering HEXEDITOR Window Class.");

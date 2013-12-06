@@ -34,5 +34,7 @@ extern HWND HexEditorHWnd;
 extern HexParameters Hex;
 extern void HexCreateDialog();
 extern void HexUpdateDialog();
+extern bool SwapBytes;
+extern bool DrawLines;
 
 #endif

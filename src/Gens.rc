@@ -828,6 +828,17 @@ BEGIN
     END
 END
 
+HEXEDITOR_MENU MENU 
+BEGIN
+    
+POPUP "View"
+    BEGIN
+        MENUITEM "&Swap Bytes",                 IDC_C_HEX_SWAP
+        MENUITEM "&Show Lines",                 IDC_C_HEX_LINES
+		MENUITEM "&Show Text Area",             IDC_C_HEX_TEXT
+    END
+END
+
 
 /////////////////////////////////////////////////////////////////////////////
 //

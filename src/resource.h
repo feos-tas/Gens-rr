@@ -609,6 +609,9 @@
 #define IDC_C_WATCH_DUPLICATE2          42177
 #define IDC_C_WATCH_SEPARATE            42177
 #define IDC_CHEATLIST                   42180
+#define IDC_C_HEX_SWAP                  42190
+#define IDC_C_HEX_LINES                 42191
+#define IDC_C_HEX_TEXT                  42192
 #define IDC_PROMPT_TEXT                 43000
 #define IDC_PROMPT_TEXT2                43001
 #define IDC_PROMPT_EDIT                 43005
