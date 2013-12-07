@@ -90,9 +90,12 @@ void HexSetColors(HDC hDC, bool Selection)
 	}
 }
 
-void HexUpdateDialog()
+void HexUpdateDialog(bool ClearBG)
 {
-	InvalidateRect(HexEditorHWnd, NULL, FALSE);
+	if (ClearBG)
+		InvalidateRect(HexEditorHWnd, NULL, TRUE);
+	else
+		InvalidateRect(HexEditorHWnd, NULL, FALSE);
 }
 
 void HexUpdateCaption()
@@ -236,7 +239,7 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 			BeginPaint(hDlg, &ps);
 			// TOP HEADER, static.
 			for (row = 0; row < RowCount; row++) {
-				MoveToEx(HexDC, row * Hex.CellWidth + CellArea.left, 0, NULL);
+				MoveToEx(HexDC, row * Hex.CellWidth + CellArea.left, -1, NULL);
 				HexSetColors(HexDC, 0);
 				sprintf(buf, "%2X", row);
 				TextOut(HexDC, 0, 0, buf, strlen(buf));
@@ -245,7 +248,7 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 			for (line = 0; line < Hex.OffsetVisibleTotal; line++) {
 				MoveToEx(HexDC, 0, line * Hex.CellHeight + CellArea.top, NULL);
 				HexSetColors(HexDC, 0);
-				sprintf(buf, "%06X", Hex.OffsetVisibleFirst + line * RowCount + Hex.MemoryRegion);
+				sprintf(buf, "%06X:", Hex.OffsetVisibleFirst + line * RowCount + Hex.MemoryRegion);
 				TextOut(HexDC, 0, 0, buf, strlen(buf));
 			}
 			// RAM, dynamic.
@@ -285,14 +288,16 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 			}
 			// Some lines
 			if (DrawLines) {
+				MoveToEx(HexDC, 0, CellArea.top - 1, NULL);
+				LineTo(HexDC, CLIENT_WIDTH, CellArea.top - 1); // horizontal
 				MoveToEx(HexDC, CellArea.left - Hex.FontWidth / 2 - 1, 0, NULL);
-				LineTo(HexDC, CellArea.left - Hex.FontWidth / 2 - 1, CLIENT_HEIGHT);
+				LineTo(HexDC, CellArea.left - Hex.FontWidth / 2 - 1, CLIENT_HEIGHT); // vertical left
 				MoveToEx(HexDC, CellArea.left + Hex.CellWidth * 8 - Hex.FontWidth / 2 - 1, 0, NULL);
-				LineTo(HexDC, CellArea.left + Hex.CellWidth * 8 - Hex.FontWidth / 2 - 1, CLIENT_HEIGHT);
-				MoveToEx(HexDC, TextArea.left - Hex.FontWidth / 2 - 1, 0, NULL);
-				LineTo(HexDC, TextArea.left - Hex.FontWidth / 2 - 1, CLIENT_HEIGHT);
-				MoveToEx(HexDC, 0, CellArea.top, NULL);
-				LineTo(HexDC, CLIENT_WIDTH, CellArea.top);
+				LineTo(HexDC, CellArea.left + Hex.CellWidth * 8 - Hex.FontWidth / 2 - 1, CLIENT_HEIGHT); // vertical middle
+				if (Hex.TextView) {
+					MoveToEx(HexDC, TextArea.left - Hex.FontWidth / 2 - 1, 0, NULL);
+					LineTo(HexDC, TextArea.left - Hex.FontWidth / 2 - 1, CLIENT_HEIGHT); // vertical right
+				}
 			}
 			EndPaint(hDlg, &ps);
 			return 0;
@@ -322,7 +327,7 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 			case IDC_C_HEX_LINES:
 				DrawLines = !DrawLines;
 				CheckMenuItem(HexEditorMenu, IDC_C_HEX_LINES, DrawLines ? MF_CHECKED : MF_UNCHECKED);
-				HexUpdateDialog();
+				HexUpdateDialog(1);
 				break;
 
 			case IDC_C_HEX_TEXT:

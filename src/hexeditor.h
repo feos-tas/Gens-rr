@@ -33,7 +33,7 @@ enum MousePos {
 extern HWND HexEditorHWnd;
 extern HexParameters Hex;
 extern void HexCreateDialog();
-extern void HexUpdateDialog();
+extern void HexUpdateDialog(bool ClearBG = 0);
 extern bool SwapBytes;
 extern bool DrawLines;
 
