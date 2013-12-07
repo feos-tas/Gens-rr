@@ -177,6 +177,20 @@ void HexSelectAddress(int Address, bool ButtonDown)
 	}
 }
 
+void HexGoToAddress(int Address)
+{
+	if (Address < 0                ) Address = 0;
+	if (Address > _68K_RAM_SIZE - 1) Address = _68K_RAM_SIZE - 1;
+	Hex.AddressSelectedFirst = Address;
+	Hex.AddressSelectedLast  = Address;
+	Hex.AddressSelectedTotal = 1;
+	if (Hex.AddressSelectedLast < Hex.OffsetVisibleFirst)
+		Hex.OffsetVisibleFirst = SELECTION_START / RowCount * RowCount;
+	if (Hex.AddressSelectedLast > LAST_ADDRESS)
+		Hex.OffsetVisibleFirst = (SELECTION_END / RowCount - Hex.OffsetVisibleTotal + 1) * RowCount;
+	HexUpdateDialog();
+}
+
 void HexDestroySelection()
 {
 	MouseArea = NO;
@@ -195,6 +209,75 @@ void HexDestroyDialog()
 	HexEditorHWnd = 0;
 	HexStarted = 0;
 	return;
+}
+
+LRESULT CALLBACK HexGoToProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+	RECT hr;
+	switch(uMsg) {
+		case WM_INITDIALOG:
+			Clear_Sound_Buffer();
+			if (Full_Screen)
+			{
+				while (ShowCursor(false) >= 0);
+				while (ShowCursor(true) < 0);
+			}
+			GetWindowRect(HexEditorHWnd, &hr);
+			SetWindowPos(hDlg, NULL, hr.left, hr.top, NULL, NULL, SWP_NOSIZE | SWP_NOZORDER | SWP_SHOWWINDOW);
+			strcpy(Str_Tmp, "Type address to go to.");
+			SendDlgItemMessage(hDlg, IDC_PROMPT_TEXT, WM_SETTEXT, 0, (LPARAM)Str_Tmp);
+			strcpy(Str_Tmp, "Format: FF---- (any case)");
+			SendDlgItemMessage(hDlg, IDC_PROMPT_TEXT2, WM_SETTEXT, 0, (LPARAM)Str_Tmp);
+			return true;
+			break;
+
+		case WM_COMMAND:
+			switch(LOWORD(wParam))
+			{
+			case IDOK:
+				{
+					if (Full_Screen)
+					{
+						while (ShowCursor(true) < 0);
+						while (ShowCursor(false) >= 0);
+					}
+					GetDlgItemText(hDlg, IDC_PROMPT_EDIT, Str_Tmp, 10);
+					int Address;
+					if ((strnicmp(Str_Tmp, "ff", 2) == 0) && (sscanf(Str_Tmp+2, "%x", &Address)))
+						HexGoToAddress(Address);
+					DialogsOpen--;
+					EndDialog(hDlg, true);
+					return true;
+				}
+				break;
+			case ID_CANCEL:
+			case IDCANCEL:
+				if (Full_Screen)
+				{
+					while (ShowCursor(true) < 0);
+					while (ShowCursor(false) >= 0);
+				}
+				DialogsOpen--;
+				EndDialog(hDlg, false);
+				return false;
+				break;
+			}
+		break;
+
+		case WM_CLOSE:
+			if (Full_Screen)
+			{
+				while (ShowCursor(true) < 0);
+				while (ShowCursor(false) >= 0);
+			}
+			DialogsOpen--;
+			EndDialog(hDlg, false);
+			return false;
+			break;
+
+
+	}
+	return false;
 }
 
 LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
@@ -339,6 +422,10 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 				HexUpdateDialog();
 				break;
 
+			case IDC_C_HEX_GOTO:
+				DialogsOpen++;
+				DialogBox(ghInstance, MAKEINTRESOURCE(IDD_PROMPT), hDlg, (DLGPROC) HexGoToProc);
+				break;
 /*			case IDC_SAVE:
 				{
 					char fname[2048];

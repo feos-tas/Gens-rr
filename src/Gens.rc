@@ -831,6 +831,8 @@ END
 HEXEDITOR_MENU MENU 
 BEGIN
     
+MENUITEM "&GoTo",                               IDC_C_HEX_GOTO
+
 POPUP "View"
     BEGIN
         MENUITEM "&Swap Bytes",                 IDC_C_HEX_SWAP
