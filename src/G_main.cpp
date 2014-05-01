@@ -3539,7 +3539,7 @@ dialogAgain: //Nitsuja added this
 					if (Check_If_Kaillera_Running()) return 0;
 					MINIMIZE
 					DialogsOpen++;
-					DialogBox(ghInstance, MAKEINTRESOURCE(IDD_GAMEGENIE), hWnd, (DLGPROC) GGenieProc);
+					CreateDialog(ghInstance, MAKEINTRESOURCE(IDD_GAMEGENIE), hWnd, (DLGPROC) GGenieProc);
 					Build_Main_Menu();
 					return 0;
 
@@ -5984,12 +5984,60 @@ HMENU Build_Main_Menu(void)
 	return(Gens_Menu);
 }
 
+void GameGenieApply(HWND hDlg)
+{
+	int dx1, i, value;
+	char tmp[1024];
+	value = SendDlgItemMessage(hDlg, IDC_LIST1, LB_GETCOUNT, (WPARAM) 0, (LPARAM) 0);
+	if (value == LB_ERR) value = 0;
+	for(i = 0; i < 256; i++)
+	{
+		Liste_GG[i].code[0] = 0;
+		Liste_GG[i].name[0] = 0;
+		Liste_GG[i].active = 0;
+		Liste_GG[i].addr = 0xFFFFFFFF;
+		Liste_GG[i].data = 0;
+		Liste_GG[i].restore = 0xFFFFFFFF;
+	}
+	List_GG_Max_Active_Index = 0;
+	if(value > 256) value = 256;
+	for(i = 0; i < value; i++)
+	{
+		if (SendDlgItemMessage(hDlg, IDC_LIST1, LB_GETTEXT, (WPARAM) i, (LONG) (LPTSTR) tmp) != LB_ERR)
+		{
+			dx1 = 0;
+			while ((tmp[dx1] != ' ') && (tmp[dx1] != 0)) dx1++;
+			memcpy(Liste_GG[i].code, tmp, dx1);
+			Liste_GG[i].code[dx1] = 0;
+			while ((tmp[dx1] == ' ') && (tmp[dx1] != 0)) dx1++;
+			strcpy(Liste_GG[i].name, (char *) (tmp + dx1));
+			if (SendDlgItemMessage(hDlg, IDC_LIST1, LB_GETSEL, (WPARAM) i, NULL) > 0)
+			{
+				Liste_GG[i].active = 1;
+				List_GG_Max_Active_Index = i+1;
+			}
+			else Liste_GG[i].active = 0;
+		}
+	}
+	for(i = 0; i < value; i++)
+	{
+		if ((Liste_GG[i].code[0] != 0) && (Liste_GG[i].addr == 0xFFFFFFFF) && (Liste_GG[i].data == 0))
+		{
+			decode(Liste_GG[i].code, (patch *) (&(Liste_GG[i].addr)));
+			if ((Liste_GG[i].restore == 0xFFFFFFFF) && (Liste_GG[i].addr < Rom_Size) && (Genesis_Started))
+			{
+				Liste_GG[i].restore = (unsigned int) (Rom_Data[Liste_GG[i].addr] & 0xFF);
+				Liste_GG[i].restore += (unsigned int) ((Rom_Data[Liste_GG[i].addr + 1] & 0xFF) << 8);
+			}
+		}
+	}
+}
+
 LRESULT CALLBACK GGenieProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
 	RECT r;
 	RECT r2;
 	int dx1, dy1, dx2, dy2, i, value;
-	char tmp[1024];
 
 	switch(uMsg)
 	{
@@ -6089,58 +6137,7 @@ LRESULT CALLBACK GGenieProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 					break;
 
 				case ID_OK:
-					value = SendDlgItemMessage(hDlg, IDC_LIST1, LB_GETCOUNT, (WPARAM) 0, (LPARAM) 0);
-					if (value == LB_ERR) value = 0;
-
-					for(i = 0; i < 256; i++)
-					{
-						Liste_GG[i].code[0] = 0;
-						Liste_GG[i].name[0] = 0;
-						Liste_GG[i].active = 0;
-						Liste_GG[i].addr = 0xFFFFFFFF;
-						Liste_GG[i].data = 0;
-						Liste_GG[i].restore = 0xFFFFFFFF;
-					}
-					List_GG_Max_Active_Index = 0;
-
-					if(value > 256) value = 256;
-					for(i = 0; i < value; i++)
-					{
-						if (SendDlgItemMessage(hDlg, IDC_LIST1, LB_GETTEXT, (WPARAM) i, (LONG) (LPTSTR) tmp) != LB_ERR)
-						{
-							dx1 = 0;
-
-							while ((tmp[dx1] != ' ') && (tmp[dx1] != 0)) dx1++;
-
-							memcpy(Liste_GG[i].code, tmp, dx1);
-							Liste_GG[i].code[dx1] = 0;
-
-							while ((tmp[dx1] == ' ') && (tmp[dx1] != 0)) dx1++;
-
-							strcpy(Liste_GG[i].name, (char *) (tmp + dx1));
-
-							if (SendDlgItemMessage(hDlg, IDC_LIST1, LB_GETSEL, (WPARAM) i, NULL) > 0)
-							{
-								Liste_GG[i].active = 1;
-								List_GG_Max_Active_Index = i+1;
-							}
-							else Liste_GG[i].active = 0;
-						}
-					}
-
-					for(i = 0; i < value; i++)
-					{
-						if ((Liste_GG[i].code[0] != 0) && (Liste_GG[i].addr == 0xFFFFFFFF) && (Liste_GG[i].data == 0))
-						{
-							decode(Liste_GG[i].code, (patch *) (&(Liste_GG[i].addr)));
-
-							if ((Liste_GG[i].restore == 0xFFFFFFFF) && (Liste_GG[i].addr < Rom_Size) && (Genesis_Started))
-							{
-								Liste_GG[i].restore = (unsigned int) (Rom_Data[Liste_GG[i].addr] & 0xFF);
-								Liste_GG[i].restore += (unsigned int) ((Rom_Data[Liste_GG[i].addr + 1] & 0xFF) << 8);
-							}
-						}
-					}
+					GameGenieApply(hDlg);
 
 				case ID_CANCEL:
 				case IDCANCEL:
@@ -6149,18 +6146,8 @@ LRESULT CALLBACK GGenieProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 					return true;
 					break;
 
-
-				case ID_HELP_HELP:
-					if (Detect_Format(Manual_Path) != -1)		// can be used to detect if file exist
-					{
-						strcpy(Str_Tmp, Manual_Path);
-						strcat(Str_Tmp, " helpgamegenie.html");
-						system(Str_Tmp);
-					}
-					else
-					{
-						MessageBox(HWnd, "You need to configure the Manual Path to have help", "info", MB_OK);
-					}
+				case ID_GGAPPLY:
+					GameGenieApply(hDlg);
 					return true;
 					break;
 			}

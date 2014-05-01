@@ -7,7 +7,8 @@
 //
 // Generated from the TEXTINCLUDE 2 resource.
 //
-#include "afxres.h"
+#include "afxres.h"
+
 /////////////////////////////////////////////////////////////////////////////
 #undef APSTUDIO_READONLY_SYMBOLS
 
@@ -283,7 +284,7 @@ BEGIN
 END
 
 IDD_GAMEGENIE DIALOGEX 0, 0, 298, 210
-STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
+STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX
 CAPTION "Game Genie / Patch"
 FONT 8, "MS Sans Serif", 0, 0, 0x0
 BEGIN
@@ -298,7 +299,7 @@ BEGIN
     EDITTEXT        IDC_EDIT2,41,86,193,14,ES_AUTOHSCROLL
     LTEXT           "CODE",IDC_STATIC,7,68,31,9
     LTEXT           "NAME",IDC_STATIC,7,89,32,9
-    PUSHBUTTON      "&Help",ID_HELP_HELP,241,156,50,14
+    PUSHBUTTON      "&Apply",ID_GGAPPLY,241,156,50,14
     LTEXT           "Syntax for Game Genie code :  XXXX-XXXX",IDC_GGINFO3,13,31,271,10
     LTEXT           "Syntax for Patch code :  XXXXXX:YYYY    (address:data)",IDC_GGINFO4,13,40,272,9
     LTEXT           "Highlight a code to activate it.",IDC_GGINFO2,13,21,268,9
@@ -871,7 +872,8 @@ END
 //
 // Generated from the TEXTINCLUDE 3 resource.
 //
-
+
+
 /////////////////////////////////////////////////////////////////////////////
 #endif    // not APSTUDIO_INVOKED
 

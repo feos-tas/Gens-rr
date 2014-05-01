@@ -60,6 +60,7 @@
 #define ID_GGREMOVE                     1016
 #define ID_GGADD                        1017
 #define ID_GGDEACTIVATE                 1018
+#define ID_GGAPPLY                      1019
 #define IDC_EDIT_SAVE                   1020
 #define IDC_STATIC_SAVE                 1021
 #define IDC_EDIT_SRAM                   1022
