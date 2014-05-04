@@ -20,8 +20,7 @@ MousePos MouseArea = NO;
 
 bool
 	MouseButtonHeld = 0,
-	SwapBytes = 0,
-	DrawLines = 0,
+	DrawLines = 1,
 	HexStarted = 0;
 
 unsigned int
@@ -199,12 +198,12 @@ void HexCopy(bool Text) {
 				str[0] = (char) check;
 			else
 				str[0] = '.';
-			sprintf(str,"%c",Ram_68k[i+SELECTION_START]);
+			sprintf(str,"%c",Ram_68k[i^1+SELECTION_START]);
 			strcat(pGlobal,str);
 		}
 	} else {
 		for(i = 0; i < Hex.AddressSelectedTotal; i++) {
-			sprintf(str,"%02X",Ram_68k[i+SELECTION_START]);
+			sprintf(str,"%02X",Ram_68k[i^1+SELECTION_START]);
 			strcat(pGlobal,str);
 		}
 	}
@@ -354,11 +353,6 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 		for (line = 0; line < Hex.OffsetVisibleTotal; line++) {
 			for (row = 0; row < RowCount; row++) {
 				unsigned int carriage = Hex.OffsetVisibleFirst + line * RowCount + row;
-				int swap = 0;
-				if (SwapBytes) {
-					if ((row % 2) > 0) swap = -1;
-					else swap = 1;
-				}
 				// Print numbers in main area
 				MoveToEx(HexDC, row * Hex.CellWidth + CellArea.left,
 					line * Hex.CellHeight + CellArea.top, NULL);
@@ -368,7 +362,7 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 					HexSetColors(HexDC, 1);
 				else
 					HexSetColors(HexDC, 0);
-				sprintf(buf, "%02X", Ram_68k[carriage + swap]);
+				sprintf(buf, "%02X", Ram_68k[carriage^1]);
 				TextOut(HexDC, 0, 0, buf, strlen(buf));
 				// Print chars on the right
 				if (Hex.TextView) {
@@ -378,7 +372,7 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 						HexSetColors(HexDC, 1);
 					else
 						HexSetColors(HexDC, 0);
-					UINT8 check = Ram_68k[carriage + swap];
+					UINT8 check = Ram_68k[carriage^1];
 					if((check >= 32) && (check <= 127))
 						buf[0] = (char) check;
 					else
@@ -406,7 +400,6 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 		break;
 
 	case WM_INITMENU:
-		CheckMenuItem(HexEditorMenu, IDC_C_HEX_SWAP, SwapBytes ? MF_CHECKED : MF_UNCHECKED);
 		CheckMenuItem(HexEditorMenu, IDC_C_HEX_LINES, DrawLines ? MF_CHECKED : MF_UNCHECKED);
 		CheckMenuItem(HexEditorMenu, IDC_C_HEX_TEXT, Hex.TextView ? MF_CHECKED : MF_UNCHECKED);
 		break;
@@ -418,12 +411,6 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 
 	case WM_COMMAND: {
 		switch(wParam) {
-		case IDC_C_HEX_SWAP:
-			SwapBytes = !SwapBytes;
-			CheckMenuItem(HexEditorMenu, IDC_C_HEX_SWAP, SwapBytes ? MF_CHECKED : MF_UNCHECKED);
-			HexUpdateDialog();
-			break;
-
 		case IDC_C_HEX_LINES:
 			DrawLines = !DrawLines;
 			CheckMenuItem(HexEditorMenu, IDC_C_HEX_LINES, DrawLines ? MF_CHECKED : MF_UNCHECKED);
@@ -449,12 +436,12 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 				if(Change_File_S(fname,".","Save Full Dump As...","All Files\0*.*\0\0","*.*",hDlg)) {
 					FILE *out=fopen(fname,"wb+");
 					int i;
-					for (i=0;i<sizeof(Ram_68k);++i) {
-						fname[i&2047]=Ram_68k[i^1];
-						if ((i&2047)==2047)
-							fwrite(fname,1,sizeof(fname),out);
+					for (i=0; i < sizeof(Ram_68k); ++i) {
+						fname[i&2047] = Ram_68k[i^1];
+						if ((i&2047) == 2047)
+							fwrite(fname, 1, sizeof(fname), out);
 					}
-					fwrite(fname,1,i&2047,out);
+					fwrite(fname, 1, i&2047, out);
 					fclose(out);
 				}
 			}

@@ -2452,8 +2452,6 @@ int Save_Config(char *File_Name)
 	WritePrivateProfileString("Tools", "Hex Editor Total Offset", Str_Tmp, Conf_File);
 	wsprintf(Str_Tmp, "%d", Hex.TextView);
 	WritePrivateProfileString("Tools", "Hex Editor Text View", Str_Tmp, Conf_File);
-	wsprintf(Str_Tmp, "%d", SwapBytes);
-	WritePrivateProfileString("Tools", "Hex Editor Swap Bytes", Str_Tmp, Conf_File);
 	wsprintf(Str_Tmp, "%d", DrawLines);
 	WritePrivateProfileString("Tools", "Hex Editor Draw Lines", Str_Tmp, Conf_File);
 
@@ -2977,7 +2975,6 @@ int Load_Config(char *File_Name, void *Game_Active)
 	Hex.OffsetVisibleFirst = GetPrivateProfileInt("Tools", "Hex Editor First Offset", 0, Conf_File);
 	Hex.OffsetVisibleTotal = GetPrivateProfileInt("Tools", "Hex Editor Total Offset", 16, Conf_File);
 	Hex.TextView = !!GetPrivateProfileInt("Tools", "Hex Editor Text View", 1, Conf_File);
-	SwapBytes = !!GetPrivateProfileInt("Tools", "Hex Editor Swap Bytes", 0, Conf_File);
 	DrawLines = !!GetPrivateProfileInt("Tools", "Hex Editor Draw Lines", 0, Conf_File);
 
 	Fast_Blur = GetPrivateProfileInt("Options", "Fast Blur", 0, Conf_File);
