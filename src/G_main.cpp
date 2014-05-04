@@ -57,6 +57,7 @@
 #include "OpenArchive.h"
 
 extern "C" void Read_To_68K_Space(int adr);
+extern void HexDestroyDialog();
 #define MAPHACK
 #define uint32 unsigned int
 
@@ -1956,6 +1957,8 @@ void Handle_Gens_Messages()
 			StopAllLuaScripts();
 		}
 
+		if (HexEditorHWnd && IsDialogMessage(HexEditorHWnd, &msg))
+			continue;
 		if (RamSearchHWnd && IsDialogMessage(RamSearchHWnd, &msg))
 			continue;
 		if (RamWatchHWnd && IsDialogMessage(RamWatchHWnd, &msg))
@@ -2791,13 +2794,17 @@ long PASCAL WinProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		case WM_CLOSE:
 			if (AskSave())
 			{
-			if (Sound_Initialised) Clear_Sound_Buffer(); //Modif N - making sure sound doesn't stutter on exit
-			for(int i=(int)LuaScriptHWnds.size()-1; i>=0; i--)
-				SendMessage(LuaScriptHWnds[i], WM_CLOSE, 0,0);
-			if(MainMovie.File!=NULL)
-				CloseMovieFile(&MainMovie);
-			if ((Check_If_Kaillera_Running())) return 0;
-			Gens_Running = 0;
+				if (Sound_Initialised)
+					Clear_Sound_Buffer(); //Modif N - making sure sound doesn't stutter on exit
+				for(int i=(int)LuaScriptHWnds.size()-1; i>=0; i--)
+					SendMessage(LuaScriptHWnds[i], WM_CLOSE, 0,0);
+				if(MainMovie.File!=NULL)
+					CloseMovieFile(&MainMovie);
+				if ((Check_If_Kaillera_Running()))
+					return 0;
+				if (HexEditorHWnd)
+					HexDestroyDialog();
+				Gens_Running = 0;
 			}
 			return 0;
 		

@@ -14,7 +14,7 @@ typedef struct {
 	COLORREF
 		ColorFont, ColorBG, ColorSelection;
 } HexParameters;
-
+/*
 typedef struct {
 	char Name[12];
 	unsigned char* Array;
@@ -23,7 +23,7 @@ typedef struct {
 		Size,
 		RowCount;
 } HexRegion;
-
+*/
 enum MousePos {
 	NO,
 	CELL,

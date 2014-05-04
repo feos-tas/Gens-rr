@@ -614,7 +614,11 @@
 #define IDC_C_HEX_LINES                 42191
 #define IDC_C_HEX_TEXT                  42192
 #define IDC_C_HEX_GOTO                  42193
-#define IDD_HEX_GOTO_EDIT               42194
+#define IDC_C_HEX_DUMP                  42194
+#define IDC_C_HEX_COPY_NUMS             42195
+#define IDC_C_HEX_COPY_CHARS            42196
+#define IDC_C_HEX_COPY_AUTO             42197
+#define IDD_HEX_GOTO_EDIT               42200
 #define IDC_PROMPT_TEXT                 43000
 #define IDC_PROMPT_TEXT2                43001
 #define IDC_PROMPT_EDIT                 43005
