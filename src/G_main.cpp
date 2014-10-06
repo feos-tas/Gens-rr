@@ -1958,7 +1958,11 @@ void Handle_Gens_Messages()
 		}
 
 		if (HexEditorHWnd && IsDialogMessage(HexEditorHWnd, &msg))
+		{
+			if(msg.message == WM_CHAR)
+				SendMessage(HexEditorHWnd, msg.message, msg.wParam, msg.lParam);
 			continue;
+		}
 		if (RamSearchHWnd && IsDialogMessage(RamSearchHWnd, &msg))
 			continue;
 		if (RamWatchHWnd && IsDialogMessage(RamWatchHWnd, &msg))

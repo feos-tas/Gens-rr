@@ -617,7 +617,12 @@
 #define IDC_C_HEX_COPY_NUMS             42195
 #define IDC_C_HEX_COPY_CHARS            42196
 #define IDC_C_HEX_COPY_AUTO             42197
-#define IDD_HEX_GOTO_EDIT               42200
+#define IDC_C_HEX_COPY_ADDRSESS         42198
+#define IDC_C_HEX_PASTE_NUMS            42200
+#define IDC_C_HEX_PASTE_CHARS           42201
+#define IDC_C_HEX_PASTE_AUTO            42202
+#define IDC_C_HEX_REGION                42300
+#define IDD_HEX_GOTO_EDIT               42400
 #define IDC_PROMPT_TEXT                 43000
 #define IDC_PROMPT_TEXT2                43001
 #define IDC_PROMPT_EDIT                 43005
