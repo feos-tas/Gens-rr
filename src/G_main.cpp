@@ -1956,13 +1956,6 @@ void Handle_Gens_Messages()
 			Gens_Running = 0;
 			StopAllLuaScripts();
 		}
-
-		if (HexEditorHWnd && IsDialogMessage(HexEditorHWnd, &msg))
-		{
-			if(msg.message == WM_CHAR)
-				SendMessage(HexEditorHWnd, msg.message, msg.wParam, msg.lParam);
-			continue;
-		}
 		if (RamSearchHWnd && IsDialogMessage(RamSearchHWnd, &msg))
 			continue;
 		if (RamWatchHWnd && IsDialogMessage(RamWatchHWnd, &msg))
@@ -1974,9 +1967,17 @@ void Handle_Gens_Messages()
 		if (VolControlHWnd && IsDialogMessage(VolControlHWnd, &msg))
 			continue;
 		bool docontinue = false;
-		for(unsigned int i=0; i<LuaScriptHWnds.size(); i++)
+		for (UINT i = 0; i < HexEditors.size(); i++) {
+			if (HexEditors[i]->Hwnd && IsDialogMessage(HexEditors[i]->Hwnd, &msg)) {
+				if(msg.message == WM_CHAR)
+					SendMessage(HexEditors[i]->Hwnd, msg.message, msg.wParam, msg.lParam);
+				docontinue = true;
+			}
+		}
+		for(UINT i = 0; i < LuaScriptHWnds.size(); i++) {
 			if (IsDialogMessage(LuaScriptHWnds[i], &msg))
 				docontinue = true;
+		}
 		if (docontinue)
 			continue;
 		if (TranslateAccelerator (HWnd, hAccelTable, &msg))
@@ -2806,8 +2807,9 @@ long PASCAL WinProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					CloseMovieFile(&MainMovie);
 				if ((Check_If_Kaillera_Running()))
 					return 0;
-				if (HexEditorHWnd)
-					HexDestroyDialog();
+				if (HexEditors.size() > 0)
+					for (int i = (int) HexEditors.size() - 1; i >= 0; i--)
+						HexDestroyDialog(HexEditors[i]);
 				Gens_Running = 0;
 			}
 			return 0;
