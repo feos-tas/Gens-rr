@@ -38,8 +38,8 @@
 
 std::vector<HexParams *> HexEditors;
 std::vector<HexParams *> HexOrder;
-std::vector<SymbolName>  HardNames;
-std::vector<Patch>       HardPatches;
+std::vector<SymbolName>  HexNames;
+std::vector<HardPatch>   HexPatches;
 HMENU HexEditorMenu;
 HMENU HexRegionsMenu;
 HFONT HexFont = 0;
@@ -107,26 +107,26 @@ RECT
 #define LAST_ADDRESS	(Hex->OffsetVisibleFirst + Hex->OffsetVisibleTotal * RowCount - 1)
 #define SELECTION_START	min(Hex->AddressSelectedFirst, Hex->AddressSelectedLast)
 #define SELECTION_END	max(Hex->AddressSelectedFirst, Hex->AddressSelectedLast)
-#define REGION_COUNT    sizeof(HexRegions)/sizeof(HexRegions)[0]
+#define REGION_COUNT    sizeof(HexRegions) / sizeof(HexRegions)[0]
 #define OFFSET_REMINDER Hex->CurrentRegion.Size % RowCount
 #define GAP_CHECK		(row / 8 * Hex->Gap)
 
 void HexRepeatPatch(u8 *Array, UINT Start, UINT End) {
-	for (UINT i = 0; i < HardPatches.size(); i++) {
-		if (HardPatches[i].Array == Array &&
-			HardPatches[i].Address >= Start &&
-			HardPatches[i].Address >= End &&
-			HardPatches[i].Active)
-			Array[Start] = HardPatches[i].Value;
+	for (UINT i = 0; i < HexPatches.size(); i++) {
+		if (HexPatches[i].Array   == Array &&
+			HexPatches[i].Address >= Start &&
+			HexPatches[i].Address <= End   &&
+			HexPatches[i].Active)
+			Array[Start] = HexPatches[i].Value;
 	}
 }
 
-void WatchPointM68K(UINT Start, UINT Size) {
+void HexWatchPoint68K(UINT Start, UINT Size) {
 	if (UseWatchPoints)
 		HexRepeatPatch((u8 *)Ram_68k, Start, Size);
 }
 
-void __fastcall WatchPointZ80(UINT Start, UINT Size) {
+void HexWatchPointZ80(UINT Start, UINT Size) {
 	if (UseWatchPoints)
 		HexRepeatPatch((u8 *)Ram_Z80, Start, Size);
 }
@@ -173,7 +173,7 @@ void HexAddName(u8* Array, UINT Start, UINT Length, char *Name) {
 	char *buf = (char *)malloc(strlen(Name)+1);
 	sprintf(buf, Name);
 	SymbolName Instance = {Array, Start, Length, buf};
-	HardNames.push_back(Instance);
+	HexNames.push_back(Instance);
 }
 
 void HexLoadSymbols() {
@@ -187,9 +187,9 @@ void HexLoadSymbols() {
 	size = sizeof(int);
 	for (int i = 0; i < 8; i++) {
 		sprintf(buf, "D%d", i);
-		HexAddName(Array,      size*i, size, buf);
+		HexAddName(Array, size*i,      size, buf);
 		sprintf(buf, "A%d", i);
-		HexAddName(Array, 0x20+size*i, size, buf);
+		HexAddName(Array, size*i+0x20, size, buf);
 	}
 	// Z80 Regs names
 	Array = (u8 *)&M_Z80;
@@ -240,23 +240,23 @@ void HexLoadSymbols() {
 void HexUnloadSymbols() {
 	if (HexEditors.size() > 1)
 		return;
-	for (UINT i = 0; i < HardNames.size(); i++)
-		free(HardNames[i].Name);
-	HardNames.~vector();
+	for (UINT i = 0; i < HexNames.size(); i++)
+		free(HexNames[i].Name);
+	HexNames.~vector();
 }
 
 void HexCastName(HexParams *Hex, char *buf, UINT size, UINT Address) {
 	sprintf(buf, "");
 	UINT Offset;
-	for (UINT i = 0; i < HardNames.size(); i++) {
-		if (HardNames[i].Array == Hex->CurrentRegion.Array &&
-			HardNames[i].Start <= Address &&
-			HardNames[i].Start + HardNames[i].Size > Address) {
-			if (HardNames[i].Size > 1) {
-				Offset = Address - HardNames[i].Start;
-				_snprintf(buf, size, " : %s[%d]", HardNames[i].Name, Offset);
+	for (UINT i = 0; i < HexNames.size(); i++) {
+		if (HexNames[i].Array == Hex->CurrentRegion.Array &&
+			HexNames[i].Start <= Address &&
+			HexNames[i].Start + HexNames[i].Size > Address) {
+			if (HexNames[i].Size > 1) {
+				Offset = Address - HexNames[i].Start;
+				_snprintf(buf, size, " : %s[%d]", HexNames[i].Name, Offset);
 			} else
-				_snprintf(buf, size, " : %s", HardNames[i].Name);
+				_snprintf(buf, size, " : %s", HexNames[i].Name);
 		}
 	}
 }
@@ -491,69 +491,157 @@ void HexDestroyDialog(HexParams *Hex) {
 	return;
 }
 
+LRESULT CALLBACK SymbolNameProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+	HexParams *Hex;
+	int AddressRel = 0;
+	int AddressAbs = 0;
+	int Size = 0;
+	u8 *Region = NULL;
+	u8 *RegionGuess = NULL;
+	char Name[60];
+
+	if (uMsg != WM_INITDIALOG) {
+		LONG_PTR lpUserData = GetWindowLongPtr(hDlg, GWLP_USERDATA);
+		if (lpUserData)
+			Hex = (HexParams *)lpUserData;
+		else
+			return false;
+	}
+
+	switch(uMsg) {
+	case WM_INITDIALOG: {
+		int index = 0;
+		Clear_Sound_Buffer();
+		SetWindowLongPtr(hDlg, GWLP_USERDATA, (LONG_PTR) lParam);
+		Hex = (HexParams *)lParam;
+		for (int i=0; i<REGION_COUNT, HexRegions[i].Active; i++) {
+			SendDlgItemMessage(hDlg, IDC_SYMB_REGION, CB_ADDSTRING, (WPARAM) 0, (LONG) (LPTSTR) HexRegions[i].Name);
+			if (HexRegions[i].Array == Hex->CurrentRegion.Array)
+				index = i;
+		}
+		SendDlgItemMessage(hDlg, IDC_SYMB_REGION, CB_SETCURSEL, (WPARAM) index, (LPARAM) 0);
+		SendDlgItemMessage(hDlg, IDC_2_BYTES, BM_SETCHECK, BST_CHECKED, 0);
+		return true;
+		break;
+	}
+
+	case WM_COMMAND:
+		switch(LOWORD(wParam)) {
+		case IDOK: {
+			int Error = 0;
+			GetDlgItemText(hDlg, IDC_SYMB_ADDRESS_REL, Str_Tmp, 10);
+			if (sscanf(Str_Tmp, "%x", &AddressRel) < 1)
+				Error |= 1;
+			GetDlgItemText(hDlg, IDC_SYMB_ADDRESS_ABS, Str_Tmp, 10);
+			if (sscanf(Str_Tmp, "%x", &AddressAbs) < 1)
+				Error |= 2;
+			else {
+				if      (AddressAbs >= 0        && AddressAbs <  0x800000) {
+					RegionGuess = (u8 *)Rom_Data;
+					AddressRel = AddressAbs;
+				} else if (AddressAbs >= 0xFF0000 && AddressAbs < 0x1000000) {
+					RegionGuess = (u8 *)Ram_68k;
+					AddressRel = AddressAbs - 0xFF0000;
+				} else if (AddressAbs >= 0xA00000 && AddressAbs <  0xA20000) {
+					RegionGuess = (u8 *)Ram_Z80;
+					AddressRel = AddressAbs - 0xA00000;
+				} else {
+					RegionGuess = NULL;
+					AddressRel = AddressAbs;
+				}
+			}
+			GetDlgItemText(hDlg, IDC_SYMB_NAME, Str_Tmp, 61);
+			if (sprintf(Name, "%s", Str_Tmp) == 0)
+				Error |= 4;
+			if ((Error & 3) == 3) {
+				MessageBox(NULL, "Provide at least one address", "Error", MB_OK);
+				return false;
+			} else if ((Error & 4) == 4) {
+				MessageBox(NULL, "Provide a name", "Error", MB_OK);
+				return false;
+			}
+			Region = HexRegions[SendDlgItemMessage(hDlg, IDC_SYMB_REGION, CB_GETCURSEL, 0, 0)].Array;
+			if (IsDlgButtonChecked(hDlg, IDC_1_BYTE))
+				Size = 1;
+			else if (IsDlgButtonChecked(hDlg, IDC_2_BYTES))
+				Size = 2;
+			else if (IsDlgButtonChecked(hDlg, IDC_4_BYTES))
+				Size = 4;
+			HexAddName(Region, AddressRel, Size, Name);
+			DialogsOpen--;
+			EndDialog(hDlg, true);
+			HexGoToAddress(Hex, AddressRel);
+			return true;
+			break;
+		}
+		case IDCANCEL:
+			DialogsOpen--;
+			EndDialog(hDlg, false);
+			return false;
+			break;
+		}
+		break;
+	case WM_CLOSE:
+		DialogsOpen--;
+		EndDialog(hDlg, false);
+		return false;
+		break;
+	}	
+	return false;
+
+}
+
 LRESULT CALLBACK HexGoToProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 	RECT hr;
 	HexParams *Hex;
 
 	if (uMsg != WM_INITDIALOG) {
 		LONG_PTR lpUserData = GetWindowLongPtr(hDlg, GWLP_USERDATA);
-		if (lpUserData) {
+		if (lpUserData)
 			Hex = (HexParams *)lpUserData;
-		} else
+		else
 			return false;
 	}
 
 	switch(uMsg) {
-		case WM_INITDIALOG:
-			SetWindowLongPtr(hDlg, GWLP_USERDATA, (LONG_PTR) lParam);
-			Clear_Sound_Buffer();
-			GetWindowRect(hDlg, &hr);
-			SetWindowPos(hDlg, NULL, hr.left, hr.top, NULL, NULL, SWP_NOSIZE | SWP_NOZORDER | SWP_SHOWWINDOW);
-			strcpy(Str_Tmp, "Type address to go to.");
-			SendDlgItemMessage(hDlg, IDC_PROMPT_TEXT, WM_SETTEXT, 0, (LPARAM)Str_Tmp);
-			strcpy(Str_Tmp, "Format: FF****");
-			SendDlgItemMessage(hDlg, IDC_PROMPT_TEXT2, WM_SETTEXT, 0, (LPARAM)Str_Tmp);
+	case WM_INITDIALOG:
+		SetWindowLongPtr(hDlg, GWLP_USERDATA, (LONG_PTR) lParam);
+		Clear_Sound_Buffer();
+		GetWindowRect(hDlg, &hr);
+		SetWindowPos(hDlg, NULL, hr.left, hr.top, NULL, NULL, SWP_NOSIZE | SWP_NOZORDER | SWP_SHOWWINDOW);
+		strcpy(Str_Tmp, "Type address to go to.");
+		SendDlgItemMessage(hDlg, IDC_PROMPT_TEXT, WM_SETTEXT, 0, (LPARAM)Str_Tmp);
+		strcpy(Str_Tmp, "Format: FF****");
+		SendDlgItemMessage(hDlg, IDC_PROMPT_TEXT2, WM_SETTEXT, 0, (LPARAM)Str_Tmp);
+		return true;
+		break;
+
+	case WM_COMMAND:
+		switch(LOWORD(wParam)) {
+		case IDOK: {
+			GetDlgItemText(hDlg, IDC_PROMPT_EDIT, Str_Tmp, 10);
+			int Address;
+			if ((strnicmp(Str_Tmp, "ff", 2) == 0) && (sscanf(Str_Tmp+2, "%x", &Address)))
+				HexGoToAddress(Hex, Address);
+			DialogsOpen--;
+			EndDialog(hDlg, true);
 			return true;
 			break;
-
-		case WM_COMMAND:
-			switch(LOWORD(wParam)) {
-			case IDOK: {
-				if (Full_Screen) {
-					while (ShowCursor(true) < 0);
-					while (ShowCursor(false) >= 0);
-				}
-				GetDlgItemText(hDlg, IDC_PROMPT_EDIT, Str_Tmp, 10);
-				int Address;
-				if ((strnicmp(Str_Tmp, "ff", 2) == 0) && (sscanf(Str_Tmp+2, "%x", &Address)))
-					HexGoToAddress(Hex, Address);
-				DialogsOpen--;
-				EndDialog(hDlg, true);
-				return true;
-				}
-				break;
-			case ID_CANCEL:
-			case IDCANCEL:
-				if (Full_Screen) {
-					while (ShowCursor(true) < 0);
-					while (ShowCursor(false) >= 0);
-				}
-				DialogsOpen--;
-				EndDialog(hDlg, false);
-				return false;
-				break;
-			}
-			break;
-
-		case WM_CLOSE:
-			if (Full_Screen) {
-				while (ShowCursor(true) < 0);
-				while (ShowCursor(false) >= 0);
-			}
+		}
+		case ID_CANCEL:
+		case IDCANCEL:
 			DialogsOpen--;
 			EndDialog(hDlg, false);
 			return false;
 			break;
+		}
+		break;
+
+	case WM_CLOSE:
+		DialogsOpen--;
+		EndDialog(hDlg, false);
+		return false;
+		break;
 	}
 	return false;
 }
@@ -568,9 +656,9 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 		return TRUE;
     } else {
 		LONG_PTR lpUserData = GetWindowLongPtr(hDlg, GWLP_USERDATA);
-		if (lpUserData) {
+		if (lpUserData)
 			Hex = (HexParams *)lpUserData;
-		} else
+		else
 			return DefWindowProc(hDlg, uMsg, wParam, lParam);
 	}
 
@@ -725,19 +813,9 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 		}
 		switch(wParam) {
 
-		case IDC_C_HEX_LINES:
-			Hex->DrawLines ^= 1;
-			CheckMenuItem(HexEditorMenu, IDC_C_HEX_LINES, Hex->DrawLines ? MF_CHECKED : MF_UNCHECKED);
-			HexUpdateDialog(Hex, 1);
-			break;
-
-		case IDC_C_HEX_TEXT:
-			Hex->TextView ^= Hex->TextView;
-			CheckMenuItem(HexEditorMenu, IDC_C_HEX_TEXT, Hex->TextView ? MF_CHECKED : MF_UNCHECKED);
-			GetWindowRect(hDlg, &wr);
-			SetWindowPos(hDlg, NULL, wr.left, wr.top, CLIENT_WIDTH + ClientXGap, wr.bottom - wr.top,
-				SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_SHOWWINDOW);
-			HexUpdateDialog(Hex);
+		case ID_ADD_SYMBOLICNAME:
+			DialogsOpen++;
+			DialogBoxParam(ghInstance, MAKEINTRESOURCE(IDD_SYMBOL_NAME), hDlg, (DLGPROC) SymbolNameProc, (LPARAM) Hex);
 			break;
 
 		case IDC_C_HEX_GOTO:
@@ -761,6 +839,7 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 			}
 			break;
 		}
+
 		case IDC_C_HEX_COPY_AUTO:
 			HexCopy(Hex, Hex->MouseArea == TEXT);
 			break;
@@ -773,6 +852,7 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 		case IDC_C_HEX_COPY_ADDRSESS:
 			HexCopy(Hex, -1);
 			break;
+
 		case IDC_C_HEX_PASTE_AUTO:
 			HexPaste(Hex, Hex->MouseArea == TEXT);
 			break;
@@ -781,6 +861,21 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 			break;
 		case IDC_C_HEX_PASTE_CHARS:
 			HexPaste(Hex, 1);
+			break;
+
+		case IDC_C_HEX_LINES:
+			Hex->DrawLines ^= 1;
+			CheckMenuItem(HexEditorMenu, IDC_C_HEX_LINES, Hex->DrawLines ? MF_CHECKED : MF_UNCHECKED);
+			HexUpdateDialog(Hex, 1);
+			break;
+
+		case IDC_C_HEX_TEXT:
+			Hex->TextView ^= Hex->TextView;
+			CheckMenuItem(HexEditorMenu, IDC_C_HEX_TEXT, Hex->TextView ? MF_CHECKED : MF_UNCHECKED);
+			GetWindowRect(hDlg, &wr);
+			SetWindowPos(hDlg, NULL, wr.left, wr.top, CLIENT_WIDTH + ClientXGap, wr.bottom - wr.top,
+				SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_SHOWWINDOW);
+			HexUpdateDialog(Hex);
 			break;
 	}
 
