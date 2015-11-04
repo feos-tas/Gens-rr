@@ -39,7 +39,7 @@
 std::vector<HexParams *> HexEditors;
 std::vector<HexParams *> HexOrder;
 std::vector<SymbolName>  HexNames;
-std::vector<HardPatch>   HexPatches;
+//std::vector<HardPatch>   HexPatches;
 HMENU HexEditorMenu;
 HMENU HexRegionsMenu;
 HFONT HexFont = 0;
@@ -110,7 +110,7 @@ RECT
 #define REGION_COUNT    sizeof(HexRegions) / sizeof(HexRegions)[0]
 #define OFFSET_REMINDER Hex->CurrentRegion.Size % RowCount
 #define GAP_CHECK		(row / 8 * Hex->Gap)
-
+/*		
 void HexRepeatPatch(u8 *Array, UINT Start, UINT End) {
 	for (UINT i = 0; i < HexPatches.size(); i++) {
 		if (HexPatches[i].Array   == Array &&
@@ -130,7 +130,7 @@ void HexWatchPointZ80(UINT Start, UINT Size) {
 	if (UseWatchPoints)
 		HexRepeatPatch((u8 *)Ram_Z80, Start, Size);
 }
-
+*/
 int HexCap(int Val1, int Val2, bool GreaterThan) {
 	if      ( GreaterThan && (int) Val1 > (int) Val2) Val1 = Val2;
 	else if (!GreaterThan && (int) Val1 < (int) Val2) Val1 = Val2;
@@ -515,11 +515,11 @@ LRESULT CALLBACK SymbolNameProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPar
 		SetWindowLongPtr(hDlg, GWLP_USERDATA, (LONG_PTR) lParam);
 		Hex = (HexParams *)lParam;
 		for (int i=0; i<REGION_COUNT, HexRegions[i].Active; i++) {
-			SendDlgItemMessage(hDlg, IDC_SYMB_REGION, CB_ADDSTRING, (WPARAM) 0, (LONG) (LPTSTR) HexRegions[i].Name);
+//			SendDlgItemMessage(hDlg, IDC_SYMB_REGION, CB_ADDSTRING, (WPARAM) 0, (LONG) (LPTSTR) HexRegions[i].Name);
 			if (HexRegions[i].Array == Hex->CurrentRegion.Array)
 				index = i;
 		}
-		SendDlgItemMessage(hDlg, IDC_SYMB_REGION, CB_SETCURSEL, (WPARAM) index, (LPARAM) 0);
+//		SendDlgItemMessage(hDlg, IDC_SYMB_REGION, CB_SETCURSEL, (WPARAM) index, (LPARAM) 0);
 		SendDlgItemMessage(hDlg, IDC_2_BYTES, BM_SETCHECK, BST_CHECKED, 0);
 		return true;
 		break;
@@ -529,10 +529,10 @@ LRESULT CALLBACK SymbolNameProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPar
 		switch(LOWORD(wParam)) {
 		case IDOK: {
 			int Error = 0;
-			GetDlgItemText(hDlg, IDC_SYMB_ADDRESS_REL, Str_Tmp, 10);
+//			GetDlgItemText(hDlg, IDC_SYMB_ADDRESS_REL, Str_Tmp, 10);
 			if (sscanf(Str_Tmp, "%x", &AddressRel) < 1)
 				Error |= 1;
-			GetDlgItemText(hDlg, IDC_SYMB_ADDRESS_ABS, Str_Tmp, 10);
+//			GetDlgItemText(hDlg, IDC_SYMB_ADDRESS_ABS, Str_Tmp, 10);
 			if (sscanf(Str_Tmp, "%x", &AddressAbs) < 1)
 				Error |= 2;
 			else {
@@ -550,7 +550,7 @@ LRESULT CALLBACK SymbolNameProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPar
 					AddressRel = AddressAbs;
 				}
 			}
-			GetDlgItemText(hDlg, IDC_SYMB_NAME, Str_Tmp, 61);
+//			GetDlgItemText(hDlg, IDC_SYMB_NAME, Str_Tmp, 61);
 			if (sprintf(Name, "%s", Str_Tmp) == 0)
 				Error |= 4;
 			if ((Error & 3) == 3) {
@@ -560,7 +560,7 @@ LRESULT CALLBACK SymbolNameProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPar
 				MessageBox(NULL, "Provide a name", "Error", MB_OK);
 				return false;
 			}
-			Region = HexRegions[SendDlgItemMessage(hDlg, IDC_SYMB_REGION, CB_GETCURSEL, 0, 0)].Array;
+//			Region = HexRegions[SendDlgItemMessage(hDlg, IDC_SYMB_REGION, CB_GETCURSEL, 0, 0)].Array;
 			if (IsDlgButtonChecked(hDlg, IDC_1_BYTE))
 				Size = 1;
 			else if (IsDlgButtonChecked(hDlg, IDC_2_BYTES))
@@ -812,12 +812,12 @@ LRESULT CALLBACK HexEditorProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 			}
 		}
 		switch(wParam) {
-
+/*
 		case ID_ADD_SYMBOLICNAME:
 			DialogsOpen++;
 			DialogBoxParam(ghInstance, MAKEINTRESOURCE(IDD_SYMBOL_NAME), hDlg, (DLGPROC) SymbolNameProc, (LPARAM) Hex);
 			break;
-
+*/
 		case IDC_C_HEX_GOTO:
 			DialogsOpen++;
 			DialogBoxParam(ghInstance, MAKEINTRESOURCE(IDD_PROMPT), hDlg, (DLGPROC) HexGoToProc, (LPARAM) Hex);
